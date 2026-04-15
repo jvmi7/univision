@@ -14,10 +14,9 @@ import * as THREE from "three"
 
 import {
   NETWORK_CONFIG,
-  NETWORK_EDGE_COLOR,
-  NETWORK_EDGE_HIGHLIGHT_COLOR,
   NODE_COLORS,
 } from "@/lib/constants"
+import { generateLogoTargets } from "@/lib/generateLogoTargets"
 import { generateMockData, type NetworkData, type NetworkNode } from "@/lib/generateMockData"
 
 type NetworkGraphProps = {
@@ -25,6 +24,18 @@ type NetworkGraphProps = {
   onSelectionChange: (node: NetworkNode | null) => void
   onTooltipPositionChange: (position: { x: number; y: number } | null) => void
   scrollProgress: number
+}
+
+function createDeterministicRandom(seed: number) {
+  let state = seed
+
+  return () => {
+    state |= 0
+    state = (state + 0x6d2b79f5) | 0
+    let t = Math.imul(state ^ (state >>> 15), 1 | state)
+    t ^= t + Math.imul(t ^ (t >>> 7), 61 | t)
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+  }
 }
 
 function createNodeMaterial() {
@@ -99,7 +110,6 @@ function NetworkScene({
   const { camera, size, invalidate } = useThree()
   const controlsRef = useRef<ComponentRef<typeof OrbitControls>>(null)
   const nodesRef = useRef<THREE.InstancedMesh>(null)
-  const edgesRef = useRef<THREE.LineSegments>(null)
   const frameCounterRef = useRef(0)
   const selectedNodeIdRef = useRef<number | null>(null)
   const tooltipPositionRef = useRef<{ x: number; y: number } | null>(null)
@@ -115,12 +125,21 @@ function NetworkScene({
   const [selectedNodeId, setSelectedNodeId] = useState<number | null>(null)
 
   const tempObject = useMemo(() => new THREE.Object3D(), [])
-  const projectionMatrix = useMemo(() => new THREE.Matrix4(), [])
-  const frustum = useMemo(() => new THREE.Frustum(), [])
   const projectedVector = useMemo(() => new THREE.Vector3(), [])
-  const scrollCameraPosition = useMemo(() => new THREE.Vector3(), [])
-  const scrollTargetPosition = useMemo(() => new THREE.Vector3(), [])
+  const defaultCameraPosition = useMemo(() => new THREE.Vector3(0, 2, 64), [])
+  const defaultTargetPosition = useMemo(() => new THREE.Vector3(0, 0, 0), [])
+  const zoomOutCameraPosition = useMemo(() => new THREE.Vector3(0, 10, 112), [])
+  const zoomOutTargetPosition = useMemo(() => new THREE.Vector3(0, -4, 0), [])
+  const cameraTransitionVector = useMemo(() => new THREE.Vector3(), [])
+  const targetTransitionVector = useMemo(() => new THREE.Vector3(), [])
   const animatedNodePositions = useMemo(
+    () =>
+      data.nodes.map(
+        (node) => new THREE.Vector3(node.position[0], node.position[1], node.position[2])
+      ),
+    [data.nodes]
+  )
+  const targetNodePositions = useMemo(
     () =>
       data.nodes.map(
         (node) => new THREE.Vector3(node.position[0], node.position[1], node.position[2])
@@ -135,6 +154,25 @@ function NetworkScene({
       ),
     [data.nodes]
   )
+
+  const logoTargets = useMemo(() => generateLogoTargets(data.nodes.length), [data.nodes.length])
+  const orbTargets = useMemo(() => {
+    const random = createDeterministicRandom(8_271_451)
+
+    return Array.from({ length: data.nodes.length }, (_, index) => {
+      const theta = random() * Math.PI * 2
+      const phi = Math.acos(2 * random() - 1)
+      const radius = 28 + Math.cbrt(random()) * 52
+      const sinPhi = Math.sin(phi)
+      const shellBias = 0.9 + random() * 0.18
+
+      return new THREE.Vector3(
+        radius * sinPhi * Math.cos(theta) * shellBias + Math.sin(index * 0.17) * 4,
+        radius * sinPhi * Math.sin(theta) * shellBias + Math.cos(index * 0.11) * 4,
+        radius * Math.cos(phi) * shellBias + Math.sin(index * 0.07) * 5
+      )
+    })
+  }, [data.nodes.length])
 
   const motionSeeds = useMemo(
     () =>
@@ -165,7 +203,7 @@ function NetworkScene({
   )
 
   const nodeGeometry = useMemo(() => {
-    const geometry = new THREE.IcosahedronGeometry(1, 1)
+    const geometry = new THREE.IcosahedronGeometry(1, 0)
     geometry.computeBoundingSphere()
     return geometry
   }, [])
@@ -190,89 +228,8 @@ function NetworkScene({
     [data.nodes.length]
   )
 
-  const edgeGeometry = useMemo(() => {
-    const positions = new Float32Array(data.edges.length * 6)
-    const colors = new Float32Array(data.edges.length * 6)
-
-    data.edges.forEach((edge, edgeIndex) => {
-      const source = data.nodes[edge.source]
-      const target = data.nodes[edge.target]
-      const sourcePosition = source.position
-      const targetPosition = target.position
-      const start = edgeIndex * 6
-
-      positions[start] = sourcePosition[0]
-      positions[start + 1] = sourcePosition[1]
-      positions[start + 2] = sourcePosition[2]
-      positions[start + 3] = targetPosition[0]
-      positions[start + 4] = targetPosition[1]
-      positions[start + 5] = targetPosition[2]
-
-      const sourceColor = new THREE.Color(NETWORK_EDGE_COLOR).multiplyScalar(
-        0.08 + (source.auraScore / 100) * 0.05
-      )
-      const targetColor = new THREE.Color(NETWORK_EDGE_COLOR).multiplyScalar(
-        0.08 + (target.auraScore / 100) * 0.05
-      )
-
-      colors[start] = sourceColor.r
-      colors[start + 1] = sourceColor.g
-      colors[start + 2] = sourceColor.b
-      colors[start + 3] = targetColor.r
-      colors[start + 4] = targetColor.g
-      colors[start + 5] = targetColor.b
-    })
-
-    const geometry = new THREE.BufferGeometry()
-    geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3))
-    geometry.setAttribute("color", new THREE.BufferAttribute(colors, 3))
-
-    return geometry
-  }, [data.edges, data.nodes])
-
-  const baseEdgeColors = useMemo(
-    () =>
-      Float32Array.from(
-        (
-          edgeGeometry.getAttribute("color") as THREE.BufferAttribute
-        ).array as ArrayLike<number>
-      ),
-    [edgeGeometry]
-  )
-
-  const highlightedEdgeColors = useMemo(() => {
-    const colors = new Float32Array(baseEdgeColors.length)
-
-    data.edges.forEach((_, edgeIndex) => {
-      const sourceColor = new THREE.Color(NETWORK_EDGE_HIGHLIGHT_COLOR).multiplyScalar(0.55)
-      const targetColor = new THREE.Color(NETWORK_EDGE_HIGHLIGHT_COLOR).multiplyScalar(0.55)
-      const start = edgeIndex * 6
-
-      colors[start] = sourceColor.r
-      colors[start + 1] = sourceColor.g
-      colors[start + 2] = sourceColor.b
-      colors[start + 3] = targetColor.r
-      colors[start + 4] = targetColor.g
-      colors[start + 5] = targetColor.b
-    })
-
-    return colors
-  }, [baseEdgeColors.length, data.edges, data.nodes])
-
-  const edgeMaterial = useMemo(
-    () =>
-      new THREE.LineBasicMaterial({
-        transparent: true,
-        opacity: 0.085,
-        vertexColors: true,
-        blending: THREE.AdditiveBlending,
-        depthWrite: false,
-      }),
-    []
-  )
-
   const updateNodeMatrices = useCallback(
-    (cameraDistance: number, activeFrustum: THREE.Frustum, elapsedTime: number) => {
+    (cameraDistance: number, elapsedTime: number, deltaTime: number) => {
       const instancedMesh = nodesRef.current
       if (!instancedMesh) {
         return
@@ -282,27 +239,48 @@ function NetworkScene({
       const isMedium =
         cameraDistance <= NETWORK_CONFIG.farDistance &&
         cameraDistance > NETWORK_CONFIG.nearDistance
+      const clusterProgress = THREE.MathUtils.smootherstep(scrollProgressRef.current, 0.06, 0.46)
+      const settleProgress = THREE.MathUtils.smootherstep(scrollProgressRef.current, 0.4, 0.62)
+      const positionLerpAlpha = 1 - Math.exp(-deltaTime * 12)
 
       for (let index = 0; index < data.nodes.length; index += 1) {
         const basePosition = nodePositions[index]
+        const logoTarget = logoTargets[index]
+        const orbTarget = orbTargets[index]
         const animatedPosition = animatedNodePositions[index]
+        const targetPosition = targetNodePositions[index]
         const motion = motionSeeds[index]
         const wave = elapsedTime * motion.speed + motion.phase
-        const offsetA = Math.sin(wave) * motion.amplitude
-        const offsetB = Math.cos(wave * 0.7) * motion.amplitude * 0.55
 
-        animatedPosition
-          .copy(basePosition)
+        targetPosition.copy(basePosition)
+
+        if (logoTarget) {
+          targetPosition.lerp(logoTarget.position, logoTarget.influence)
+        }
+
+        if (orbTarget && clusterProgress > 0) {
+          targetPosition.lerp(orbTarget, clusterProgress)
+        }
+
+        const logoStability = logoTarget ? THREE.MathUtils.lerp(1, 0.025, logoTarget.influence) : 1
+        const clusterStability = THREE.MathUtils.lerp(logoStability, 0.2, clusterProgress)
+        const motionStability = THREE.MathUtils.lerp(clusterStability, 0.03, settleProgress)
+        const offsetA = Math.sin(wave) * motion.amplitude * motionStability
+        const offsetB = Math.cos(wave * 0.7) * motion.amplitude * 0.55 * motionStability
+
+        targetPosition
           .addScaledVector(motion.tangent, offsetA)
           .addScaledVector(motion.bitangent, offsetB)
 
+        animatedPosition.lerp(targetPosition, positionLerpAlpha)
+
         const position = animatedPosition
-        const visible = activeFrustum.containsPoint(position)
         const baseScale = baseScales[index]
         const zoomScale = isFar ? 0.72 : isMedium ? 0.9 : 1.08
-        const frustumBoost = isMedium && visible ? 1.08 : 1
+        const frustumBoost = isMedium ? 1.04 : 1
         const selectedBoost = selectedNodeIdRef.current === index ? 1.75 : 1
-        const pulse = 1 + Math.sin(wave * 1.4) * motion.pulseAmplitude
+        const animatedPulse = 1 + Math.sin(wave * 1.4) * motion.pulseAmplitude
+        const pulse = THREE.MathUtils.lerp(animatedPulse, 1, settleProgress)
         const scale = baseScale * zoomScale * frustumBoost * selectedBoost * pulse
 
         tempObject.position.copy(position)
@@ -312,42 +290,23 @@ function NetworkScene({
       }
 
       instancedMesh.instanceMatrix.needsUpdate = true
-
-      const edgePositions = (
-        edgeGeometry.getAttribute("position") as THREE.BufferAttribute
-      ).array as Float32Array
-
-      data.edges.forEach((edge, edgeIndex) => {
-        const sourcePosition = animatedNodePositions[edge.source]
-        const targetPosition = animatedNodePositions[edge.target]
-        const start = edgeIndex * 6
-
-        edgePositions[start] = sourcePosition.x
-        edgePositions[start + 1] = sourcePosition.y
-        edgePositions[start + 2] = sourcePosition.z
-        edgePositions[start + 3] = targetPosition.x
-        edgePositions[start + 4] = targetPosition.y
-        edgePositions[start + 5] = targetPosition.z
-      })
-
-      edgeGeometry.getAttribute("position").needsUpdate = true
     },
     [
       animatedNodePositions,
       baseScales,
-      data.edges,
       data.nodes.length,
-      edgeGeometry,
+      orbTargets,
+      logoTargets,
       motionSeeds,
       nodePositions,
+      targetNodePositions,
       tempObject,
     ]
   )
 
   useLayoutEffect(() => {
     const instancedMesh = nodesRef.current
-    const lines = edgesRef.current
-    if (!instancedMesh || !lines) {
+    if (!instancedMesh) {
       return
     }
 
@@ -373,7 +332,6 @@ function NetworkScene({
       instancedMesh.instanceColor.needsUpdate = true
     }
 
-    lines.geometry.computeBoundingSphere()
     invalidate()
   }, [
     auraAttribute,
@@ -403,13 +361,9 @@ function NetworkScene({
   useEffect(() => {
     const activeNodeId = hoveredNodeId ?? selectedNodeId
     const states = stateAttribute.array as Float32Array
-    const edgeColors = (
-      edgeGeometry.getAttribute("color") as THREE.BufferAttribute
-    ).array as Float32Array
 
     if (activeNodeId === null) {
       states.fill(1)
-      edgeColors.set(baseEdgeColors)
     } else {
       states.fill(0.1)
       states[activeNodeId] = 1
@@ -417,40 +371,12 @@ function NetworkScene({
       for (const neighborId of data.adjacency[activeNodeId]) {
         states[neighborId] = 0.7
       }
-
-      for (let edgeIndex = 0; edgeIndex < data.edges.length; edgeIndex += 1) {
-        const edge = data.edges[edgeIndex]
-        const start = edgeIndex * 6
-        const isConnected =
-          edge.source === activeNodeId || edge.target === activeNodeId
-
-        if (isConnected) {
-          edgeColors[start] = highlightedEdgeColors[start]
-          edgeColors[start + 1] = highlightedEdgeColors[start + 1]
-          edgeColors[start + 2] = highlightedEdgeColors[start + 2]
-          edgeColors[start + 3] = highlightedEdgeColors[start + 3]
-          edgeColors[start + 4] = highlightedEdgeColors[start + 4]
-          edgeColors[start + 5] = highlightedEdgeColors[start + 5]
-        } else {
-          edgeColors[start] = 0.02
-          edgeColors[start + 1] = 0.01
-          edgeColors[start + 2] = 0.02
-          edgeColors[start + 3] = 0.02
-          edgeColors[start + 4] = 0.01
-          edgeColors[start + 5] = 0.02
-        }
-      }
     }
 
     stateAttribute.needsUpdate = true
-    edgeGeometry.getAttribute("color").needsUpdate = true
     invalidate()
   }, [
-    baseEdgeColors,
     data.adjacency,
-    data.edges,
-    edgeGeometry,
-    highlightedEdgeColors,
     hoveredNodeId,
     invalidate,
     selectedNodeId,
@@ -475,10 +401,16 @@ function NetworkScene({
     onTooltipPositionChange(null)
     tooltipPositionRef.current = null
     focusTargetRef.current = {
-      controlsTarget: new THREE.Vector3(0, 0, 0),
-      cameraPosition: new THREE.Vector3(0, 0, NETWORK_CONFIG.mediumDistance + 4),
+      controlsTarget: defaultTargetPosition.clone(),
+      cameraPosition: defaultCameraPosition.clone(),
     }
-  }, [onSelectionChange, onTooltipPositionChange, resetSignal])
+  }, [
+    defaultCameraPosition,
+    defaultTargetPosition,
+    onSelectionChange,
+    onTooltipPositionChange,
+    resetSignal,
+  ])
 
   const focusNode = useCallback(
     (nodeId: number) => {
@@ -524,7 +456,7 @@ function NetworkScene({
     [focusNode]
   )
 
-  useFrame((state) => {
+  useFrame((state, delta) => {
     frameCounterRef.current += 1
     const controls = controlsRef.current
 
@@ -544,26 +476,21 @@ function NetworkScene({
         focusTargetRef.current = null
       }
     } else if (selectedNodeIdRef.current === null) {
-      const progress = scrollProgressRef.current
-      const travel = THREE.MathUtils.smootherstep(progress, 0, 1)
-      const orbitAngle = THREE.MathUtils.lerp(-0.8, 0.95, travel)
-      const orbitRadius = THREE.MathUtils.lerp(70, 34, travel)
-      const arc = Math.sin(progress * Math.PI)
+      const zoomOutProgress = THREE.MathUtils.smootherstep(scrollProgressRef.current, 0.62, 0.84)
 
-      scrollTargetPosition.set(
-        THREE.MathUtils.lerp(-8, 10, travel),
-        THREE.MathUtils.lerp(6, -8, travel) + arc * 3,
-        THREE.MathUtils.lerp(8, -12, travel)
+      targetTransitionVector.lerpVectors(
+        defaultTargetPosition,
+        zoomOutTargetPosition,
+        zoomOutProgress
+      )
+      cameraTransitionVector.lerpVectors(
+        defaultCameraPosition,
+        zoomOutCameraPosition,
+        zoomOutProgress
       )
 
-      scrollCameraPosition.set(
-        Math.sin(orbitAngle) * orbitRadius,
-        THREE.MathUtils.lerp(14, -10, travel) + arc * 6,
-        Math.cos(orbitAngle) * orbitRadius
-      )
-
-      controls.target.lerp(scrollTargetPosition, 0.08)
-      camera.position.lerp(scrollCameraPosition, 0.08)
+      controls.target.lerp(targetTransitionVector, 0.08)
+      camera.position.lerp(cameraTransitionVector, 0.08)
     }
 
     scrollActivityRef.current = Math.max(scrollActivityRef.current - 0.035, 0)
@@ -572,11 +499,12 @@ function NetworkScene({
     controls.update()
 
     const cameraDistance = camera.position.distanceTo(controls.target)
-    projectionMatrix.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse)
-    frustum.setFromProjectionMatrix(projectionMatrix)
 
-    if (frameCounterRef.current % 2 === 0) {
-      updateNodeMatrices(cameraDistance, frustum, state.clock.elapsedTime)
+    const shouldUpdateEveryFrame = scrollActivityRef.current > 0.04
+    const nodeUpdateInterval = shouldUpdateEveryFrame ? 1 : 2
+
+    if (frameCounterRef.current % nodeUpdateInterval === 0) {
+      updateNodeMatrices(cameraDistance, state.clock.elapsedTime, delta)
     }
 
     if (selectedNodeIdRef.current !== null) {
@@ -609,8 +537,6 @@ function NetworkScene({
       <pointLight color="#FC72FF" intensity={260} decay={2} distance={150} position={[0, 8, 28]} />
       <pointLight color="#ff9df3" intensity={150} decay={2} distance={112} position={[-22, -18, -18]} />
       <pointLight color="#ffc2f7" intensity={100} decay={2} distance={98} position={[18, 16, -12]} />
-
-      <lineSegments ref={edgesRef} geometry={edgeGeometry} material={edgeMaterial} />
 
       <instancedMesh
         ref={nodesRef}

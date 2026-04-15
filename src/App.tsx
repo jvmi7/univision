@@ -1,10 +1,62 @@
 import { lazy, Suspense, useEffect, useState } from "react"
 
 import { HeroOverlay } from "@/components/HeroOverlay"
+import { LeaderboardSection } from "@/components/LeaderboardSection"
 import { NodeTooltip } from "@/components/NodeTooltip"
+import { Button } from "@/components/ui/button"
 import type { NetworkNode } from "@/lib/generateMockData"
 
 const NetworkGraph = lazy(() => import("@/components/NetworkGraph"))
+
+const howItWorksItems = [
+  {
+    title: "Hold UNI. Build Aura.",
+    body: "Your Aura score grows automatically the longer you hold UNI. No staking. No lockups. Just hold, and your alignment speaks for itself. Providing liquidity earns a 2x Aura boost.",
+  },
+  {
+    title: "Earn REP from the community.",
+    body: "Aura holders can recognize others by assigning REP in categories like Builder, Governance Participant, or Community Member. REP is permanent and public - a lasting record of your contributions.",
+  },
+  {
+    title: "Your profile, your identity.",
+    body: "Claim a unique onchain username, link your wallets, and watch your Unigotchi evolve as your reputation grows. Your profile is a living snapshot of everything you've done in the Uniswap ecosystem.",
+  },
+]
+
+const repCategories = [
+  {
+    name: "Researcher",
+    description:
+      "Advancing knowledge of DeFi mechanisms and protocol design.",
+  },
+  {
+    name: "Builder",
+    description:
+      "Shipping tools, interfaces, and integrations that expand the ecosystem.",
+  },
+  {
+    name: "Trader",
+    description: "Actively participating in markets across Uniswap pools.",
+  },
+  {
+    name: "Liquidity Provider",
+    description: "Supplying depth and stability to the protocol.",
+  },
+  {
+    name: "Governance Participant",
+    description: "Engaging in proposals, voting, and delegation.",
+  },
+  {
+    name: "Community Member",
+    description: "Showing up, helping others, and strengthening the culture.",
+  },
+]
+
+const numbers = [
+  { value: "381,113", label: "UNI holders." },
+  { value: "One", label: "reputation layer." },
+  { value: "Zero", label: "gatekeepers." },
+]
 
 export function App() {
   const [selectedNode, setSelectedNode] = useState<NetworkNode | null>(null)
@@ -21,10 +73,12 @@ export function App() {
     const updateScrollProgress = () => {
       const scrollHeight =
         document.documentElement.scrollHeight - window.innerHeight
-      const nextProgress =
-        scrollHeight > 0 ? window.scrollY / scrollHeight : 0
+      const nextProgress = scrollHeight > 0 ? window.scrollY / scrollHeight : 0
+      const clampedProgress = Math.min(Math.max(nextProgress, 0), 1)
 
-      setScrollProgress(Math.min(Math.max(nextProgress, 0), 1))
+      setScrollProgress((current) =>
+        Math.abs(current - clampedProgress) < 0.004 ? current : clampedProgress
+      )
     }
 
     const handleScroll = () => {
@@ -70,76 +124,44 @@ export function App() {
         />
 
         <section
-          id="how-it-works"
+          id="hero-section"
           className="mx-auto max-w-7xl px-6 py-16 md:px-8 md:py-24"
         >
-          <div className="rounded-[2rem] border border-white/10 bg-black/34 p-8 shadow-[0_24px_80px_rgba(0,0,0,0.32)] backdrop-blur-xl md:p-10">
-            <div className="max-w-3xl">
+          <div className="grid gap-6 lg:grid-cols-[1.05fr_0.95fr]">
+            <div className="rounded-[2rem] border border-white/10 bg-black/34 p-8 shadow-[0_24px_80px_rgba(0,0,0,0.32)] backdrop-blur-xl md:p-10">
               <p className="text-xs uppercase tracking-[0.24em] text-white/50">
-                How It Works
+                Univision
               </p>
               <h2 className="mt-4 text-3xl font-semibold tracking-tight text-white md:text-5xl">
-                A shared trust layer for the Uniswap ecosystem.
+                Your Reputation in the Uniswap Economy
               </h2>
               <p className="mt-5 max-w-2xl text-base leading-8 text-white/68 md:text-lg">
-                Univision turns onchain behavior into a credibility graph. Aura
-                reflects long-term alignment, sparks represent attestations, and
-                the network surface shows how conviction compounds across the
-                protocol.
+                Univision turns your UNI into more than a token. Hold it,
+                contribute, and watch your onchain identity come to life.
               </p>
-            </div>
 
-            <div className="mt-10 grid gap-4 md:grid-cols-3">
-              {[
-                {
-                  title: "Observe",
-                  body: "Track UNI holders, LPs, traders, governors, researchers, and developers inside one living graph.",
-                },
-                {
-                  title: "Score",
-                  body: "Convert participation, reputation, and peer acknowledgement into readable aura signals.",
-                },
-                {
-                  title: "Coordinate",
-                  body: "Help contributors discover aligned peers, high-context clusters, and credible collaboration paths.",
-                },
-              ].map((item) => (
-                <div
-                  key={item.title}
-                  className="rounded-[1.5rem] border border-white/8 bg-white/4 p-6"
+              <div className="mt-8 flex flex-wrap gap-3">
+                <Button
+                  asChild
+                  className="h-11 rounded-full border border-[#FC72FF]/40 bg-[#FC72FF]/18 px-6 text-white hover:bg-[#FC72FF]/24"
                 >
-                  <p className="text-sm font-medium text-[#FC72FF]">{item.title}</p>
-                  <p className="mt-3 text-sm leading-7 text-white/62">{item.body}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        <section
-          id="explore"
-          className="mx-auto max-w-7xl px-6 py-16 md:px-8 md:py-24"
-        >
-          <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
-            <div className="rounded-[2rem] border border-white/10 bg-black/34 p-8 backdrop-blur-xl md:p-10">
-              <p className="text-xs uppercase tracking-[0.24em] text-white/50">
-                Explore the Graph
-              </p>
-              <h2 className="mt-4 text-3xl font-semibold tracking-tight md:text-5xl">
-                Move from noisy addresses to legible network structure.
-              </h2>
-              <p className="mt-5 text-base leading-8 text-white/68 md:text-lg">
-                The graph remains alive in the background while the page scrolls.
-                This lets the product story and the network visualization coexist:
-                interface in the foreground, protocol topology beneath it.
-              </p>
+                  <a href="#get-started">Explore Your Profile</a>
+                </Button>
+                <Button
+                  asChild
+                  variant="outline"
+                  className="h-11 rounded-full border-white/14 bg-white/4 px-6 text-white hover:bg-white/10"
+                >
+                  <a href="#what-is-univision">Learn More</a>
+                </Button>
+              </div>
             </div>
 
             <div className="grid gap-6">
               {[
-                "Scrollable storytelling layout over a persistent WebGL background.",
-                "Glass panels and gradients keep copy readable without hiding the scene.",
-                "Interactive node tooltip stays available when you focus on a participant.",
+                "Aura reflects how long you've been aligned with Uniswap.",
+                "Providing liquidity compounds that signal with a 2x boost.",
+                "REP captures how the community sees your contributions.",
               ].map((line) => (
                 <div
                   key={line}
@@ -153,24 +175,183 @@ export function App() {
         </section>
 
         <section
-          id="docs"
+          id="what-is-univision"
+          className="mx-auto max-w-7xl px-6 py-16 md:px-8 md:py-24"
+        >
+          <div className="rounded-[2rem] border border-white/10 bg-black/34 p-8 shadow-[0_24px_80px_rgba(0,0,0,0.32)] backdrop-blur-xl md:p-10">
+            <div className="max-w-4xl">
+              <p className="text-xs uppercase tracking-[0.24em] text-white/50">
+                What is Univision?
+              </p>
+              <h2 className="mt-4 text-3xl font-semibold tracking-tight text-white md:text-5xl">
+                A reputation layer built on top of the UNI token.
+              </h2>
+              <div className="mt-6 space-y-5 text-base leading-8 text-white/68 md:text-lg">
+                <p>
+                  Univision is a reputation layer built on top of the UNI token.
+                  It recognizes the people who show up - not just the capital
+                  that passes through.
+                </p>
+                <p>
+                  Every UNI holder earns Aura, a score that reflects how long
+                  you&apos;ve been part of the ecosystem. The longer you hold, the
+                  more your presence is recognized. Provide liquidity and your
+                  Aura grows even faster.
+                </p>
+                <p>
+                  But alignment is only half the picture. The community also
+                  assigns REP - reputation points across categories like
+                  Builder, Researcher, Trader, and more. REP is how the network
+                  says &quot;this person contributes.&quot;
+                </p>
+                <p>
+                  Together, Aura and REP give you a living onchain profile that
+                  reflects who you are in the Uniswap economy.
+                </p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section
+          id="how-it-works"
+          className="mx-auto max-w-7xl px-6 py-16 md:px-8 md:py-24"
+        >
+          <div className="rounded-[2rem] border border-white/10 bg-black/34 p-8 shadow-[0_24px_80px_rgba(0,0,0,0.32)] backdrop-blur-xl md:p-10">
+            <div className="max-w-3xl">
+              <p className="text-xs uppercase tracking-[0.24em] text-white/50">
+                How It Works
+              </p>
+              <h2 className="mt-4 text-3xl font-semibold tracking-tight text-white md:text-5xl">
+                Your identity grows from holding, contributing, and being seen.
+              </h2>
+            </div>
+
+            <div className="mt-10 grid gap-4 md:grid-cols-3">
+              {howItWorksItems.map((item) => (
+                <div
+                  key={item.title}
+                  className="rounded-[1.5rem] border border-white/8 bg-white/4 p-6"
+                >
+                  <p className="text-sm font-medium text-[#FC72FF]">{item.title}</p>
+                  <p className="mt-3 text-sm leading-7 text-white/62">{item.body}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section
+          id="why-it-matters"
           className="mx-auto max-w-7xl px-6 py-16 md:px-8 md:py-24"
         >
           <div className="rounded-[2rem] border border-white/10 bg-[linear-gradient(180deg,rgba(252,114,255,0.12),rgba(13,13,14,0.52))] p-8 backdrop-blur-xl md:p-10">
             <div className="grid gap-8 lg:grid-cols-[0.95fr_1.05fr] lg:items-end">
               <div>
                 <p className="text-xs uppercase tracking-[0.24em] text-white/50">
-                  Docs & Roadmap
+                  Why It Matters
                 </p>
                 <h2 className="mt-4 text-3xl font-semibold tracking-tight md:text-5xl">
-                  Build the interface layer on top of the credibility graph.
+                  History and contribution finally become visible.
                 </h2>
               </div>
-              <p className="text-base leading-8 text-white/68 md:text-lg">
-                This setup is now ready for longer-form content: docs, product
-                explanation, ecosystem examples, and future protocol modules,
-                all while the scene stays pinned behind the page as ambient context.
+              <div className="space-y-5 text-base leading-8 text-white/68 md:text-lg">
+                <p>
+                  Uniswap moves billions in volume. But until now, there&apos;s
+                  been no way to distinguish someone who&apos;s been here since day
+                  one from someone who showed up yesterday.
+                </p>
+                <p>
+                  Univision changes that. Your history matters. Your
+                  contributions are visible. And the people building,
+                  governing, and supporting the protocol finally have a way to
+                  be seen.
+                </p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <LeaderboardSection />
+
+        <section
+          id="rep-categories"
+          className="mx-auto max-w-7xl px-6 py-16 md:px-8 md:py-24"
+        >
+          <div className="rounded-[2rem] border border-white/10 bg-black/34 p-8 shadow-[0_24px_80px_rgba(0,0,0,0.32)] backdrop-blur-xl md:p-10">
+            <div className="max-w-3xl">
+              <p className="text-xs uppercase tracking-[0.24em] text-white/50">
+                REP Categories
               </p>
+              <h2 className="mt-4 text-3xl font-semibold tracking-tight text-white md:text-5xl">
+                Reputation points that describe how you show up.
+              </h2>
+            </div>
+
+            <div className="mt-10 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {repCategories.map((category) => (
+                <div
+                  key={category.name}
+                  className="rounded-[1.5rem] border border-white/8 bg-white/4 p-6"
+                >
+                  <p className="text-sm font-medium text-[#FC72FF]">
+                    {category.name}
+                  </p>
+                  <p className="mt-3 text-sm leading-7 text-white/62">
+                    {category.description}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section
+          id="the-numbers"
+          className="mx-auto max-w-7xl px-6 py-16 md:px-8 md:py-24"
+        >
+          <div className="rounded-[2rem] border border-white/10 bg-black/34 p-8 shadow-[0_24px_80px_rgba(0,0,0,0.32)] backdrop-blur-xl md:p-10">
+            <p className="text-xs uppercase tracking-[0.24em] text-white/50">
+              The Numbers
+            </p>
+            <div className="mt-8 grid gap-4 md:grid-cols-3">
+              {numbers.map((item) => (
+                <div
+                  key={item.label}
+                  className="rounded-[1.5rem] border border-white/8 bg-white/4 p-6"
+                >
+                  <p className="text-3xl font-semibold tracking-tight text-white md:text-5xl">
+                    {item.value}
+                  </p>
+                  <p className="mt-3 text-sm uppercase tracking-[0.18em] text-white/50">
+                    {item.label}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section
+          id="get-started"
+          className="mx-auto max-w-7xl px-6 py-16 md:px-8 md:py-24"
+        >
+          <div className="rounded-[2rem] border border-white/10 bg-[linear-gradient(180deg,rgba(252,114,255,0.14),rgba(13,13,14,0.5))] p-8 shadow-[0_24px_80px_rgba(0,0,0,0.32)] backdrop-blur-xl md:p-10">
+            <div className="grid gap-8 lg:grid-cols-[1fr_auto] lg:items-end">
+              <div className="max-w-3xl">
+                <p className="text-xs uppercase tracking-[0.24em] text-white/50">
+                  Get Started
+                </p>
+                <h2 className="mt-4 text-3xl font-semibold tracking-tight text-white md:text-5xl">
+                  Claim your username. Link your wallet. See where you stand.
+                </h2>
+              </div>
+              <Button
+                asChild
+                className="h-11 rounded-full border border-[#FC72FF]/40 bg-[#FC72FF]/18 px-6 text-white hover:bg-[#FC72FF]/24"
+              >
+                <a href="#leaderboard">Launch App</a>
+              </Button>
             </div>
           </div>
         </section>

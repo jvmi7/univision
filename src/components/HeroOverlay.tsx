@@ -1,4 +1,4 @@
-import { motion, useScroll, useSpring, useTransform } from "framer-motion"
+import { motion, useMotionValueEvent, useScroll } from "framer-motion"
 import { useLayoutEffect, useRef, useState } from "react"
 
 type HeroOverlayProps = {
@@ -9,25 +9,22 @@ export function HeroOverlay({ onExploreGraph: _onExploreGraph }: HeroOverlayProp
   const heroRef = useRef<HTMLElement | null>(null)
   const middleMeasureRef = useRef<HTMLSpanElement | null>(null)
   const [middleWidthPx, setMiddleWidthPx] = useState<number | null>(null)
+  const [isUnity, setIsUnity] = useState(false)
   const { scrollYProgress } = useScroll({
     target: heroRef,
     offset: ["start start", "end start"],
   })
-  const smoothProgress = useSpring(scrollYProgress, {
-    stiffness: 180,
-    damping: 30,
-    mass: 0.45,
+
+  useMotionValueEvent(scrollYProgress, "change", (value) => {
+    if (value > 0.16) {
+      setIsUnity(true)
+      return
+    }
+
+    if (value < 0.08) {
+      setIsUnity(false)
+    }
   })
-  const morphProgress = useTransform(smoothProgress, [0.08, 0.24], [0, 1])
-  const titleY = useTransform(smoothProgress, [0, 0.3, 1], [0, 0, -72])
-  const titleScale = useTransform(smoothProgress, [0, 0.3, 1], [1, 1, 0.9])
-  const titleOpacity = useTransform(smoothProgress, [0, 0.32, 1], [1, 1, 0.62])
-  const middleOpacity = useTransform(morphProgress, [0, 0.78, 1], [1, 1, 0])
-  const middleBlur = useTransform(
-    morphProgress,
-    [0, 0.8, 1],
-    ["blur(0px)", "blur(0px)", "blur(6px)"]
-  )
 
   useLayoutEffect(() => {
     const measure = () => {
@@ -37,7 +34,7 @@ export function HeroOverlay({ onExploreGraph: _onExploreGraph }: HeroOverlayProp
 
       const nextWidth = middleMeasureRef.current.getBoundingClientRect().width
       if (nextWidth > 0) {
-        setMiddleWidthPx(nextWidth)
+        setMiddleWidthPx(nextWidth + 8)
       }
     }
 
@@ -57,12 +54,6 @@ export function HeroOverlay({ onExploreGraph: _onExploreGraph }: HeroOverlayProp
     }
   }, [])
 
-  const middleAnimatedWidth = useTransform(
-    morphProgress,
-    [0, 1],
-    [middleWidthPx ?? 0, 0]
-  )
-
   return (
     <div className="relative z-10">
       <section
@@ -76,37 +67,68 @@ export function HeroOverlay({ onExploreGraph: _onExploreGraph }: HeroOverlayProp
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
             className="relative z-10 text-center"
-            style={{ opacity: titleOpacity, scale: titleScale, y: titleY }}
           >
             <span
               ref={middleMeasureRef}
               aria-hidden="true"
               className="pointer-events-none absolute opacity-0 whitespace-nowrap"
-              style={{ fontFamily: '"Audiowide", monospace', fontSize: "clamp(3.25rem,10vw,7rem)" }}
+              style={{ fontFamily: '"Audiowide", monospace', fontSize: "clamp(2rem,8vw,6rem)" }}
             >
               swap communi
             </span>
 
             <h1
-              className="inline-flex items-baseline whitespace-nowrap text-[clamp(3.25rem,10vw,7rem)] tracking-[0.02em] text-white drop-shadow-[0_0_36px_rgba(252,114,255,0.3)]"
+              className="inline-flex max-w-[92vw] items-baseline whitespace-nowrap text-[clamp(2rem,8vw,6rem)] tracking-[0.01em] text-white drop-shadow-[0_0_36px_rgba(252,114,255,0.3)]"
               style={{ fontFamily: '"Audiowide", monospace' }}
             >
-              <span>uni</span>
+              <motion.span
+                animate={{
+                  color: "#FFFFFF",
+                  opacity: isUnity ? 1 : 0.84,
+                  textShadow: isUnity
+                    ? "0 0 16px rgba(255,255,255,0.75), 0 0 36px rgba(255,255,255,0.58), 0 0 68px rgba(255,255,255,0.32)"
+                    : "0 0 36px rgba(252,114,255,0.3)",
+                }}
+                transition={{
+                  delay: isUnity ? 0.18 : 0,
+                  duration: 0.45,
+                  ease: [0.22, 1, 0.36, 1],
+                }}
+              >
+                uni
+              </motion.span>
               <motion.span
                 className="inline-block overflow-hidden whitespace-nowrap"
-                style={
+                animate={
                   middleWidthPx === null
                     ? undefined
                     : {
-                        width: middleAnimatedWidth,
-                        opacity: middleOpacity,
-                        filter: middleBlur,
+                        width: isUnity ? 0 : middleWidthPx,
+                        opacity: isUnity ? 0 : 1,
+                        filter: isUnity ? "blur(6px)" : "blur(0px)",
                       }
                 }
+                initial={false}
+                transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1] }}
               >
                 swap communi
               </motion.span>
-              <span>ty</span>
+              <motion.span
+                animate={{
+                  color: "#FFFFFF",
+                  opacity: isUnity ? 1 : 0.84,
+                  textShadow: isUnity
+                    ? "0 0 16px rgba(255,255,255,0.75), 0 0 36px rgba(255,255,255,0.58), 0 0 68px rgba(255,255,255,0.32)"
+                    : "0 0 36px rgba(252,114,255,0.3)",
+                }}
+                transition={{
+                  delay: isUnity ? 0.18 : 0,
+                  duration: 0.45,
+                  ease: [0.22, 1, 0.36, 1],
+                }}
+              >
+                ty
+              </motion.span>
             </h1>
           </motion.div>
         </div>

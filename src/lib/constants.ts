@@ -18,12 +18,9 @@ export const NODE_COLORS: Record<ParticipantType, string> = {
   governor: "#FFC7F7",
 }
 
-export const NETWORK_EDGE_COLOR = "#FF84F3"
-export const NETWORK_EDGE_HIGHLIGHT_COLOR = "#FFD6FB"
-
 export const NETWORK_CONFIG = {
-  nodeCount: 5000,
-  edgeCount: 8000,
+  nodeCount: 9000,
+  edgeCount: 0,
   sphereRadius: 42,
   labelPercentile: 0.02,
   farDistance: 90,
