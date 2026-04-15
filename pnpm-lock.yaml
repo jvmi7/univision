@@ -14,6 +14,9 @@ importers:
       '@fontsource/audiowide':
         specifier: ^5.2.7
         version: 5.2.7
+      '@radix-ui/react-dialog':
+        specifier: ^1.1.15
+        version: 1.1.15(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
       '@react-three/drei':
         specifier: ^10.7.7
         version: 10.7.7(@react-three/fiber@9.6.0(@types/react@19.2.14)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)(three@0.183.2))(@types/react@19.2.14)(@types/three@0.183.1)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)(three@0.183.2)
@@ -23,6 +26,9 @@ importers:
       '@react-three/postprocessing':
         specifier: ^3.0.4
         version: 3.0.4(@react-three/fiber@9.6.0(@types/react@19.2.14)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)(three@0.183.2))(@types/three@0.183.1)(react@19.2.5)(three@0.183.2)
+      '@remixicon/react':
+        specifier: ^4.9.0
+        version: 4.9.0(react@19.2.5)
       '@tailwindcss/vite':
         specifier: ^4.2.1
         version: 4.2.2(vite@7.3.2(@types/node@24.12.2)(jiti@2.6.1)(lightningcss@1.32.0))
@@ -1347,6 +1353,11 @@ packages:
       '@react-three/fiber': ^9.0.0
       react: ^19.0
       three: '>= 0.156.0'
+
+  '@remixicon/react@4.9.0':
+    resolution: {integrity: sha512-5/jLDD4DtKxH2B4QVXTobvV1C2uL8ab9D5yAYNtFt+w80O0Ys1xFOrspqROL3fjrZi+7ElFUWE37hBfaAl6U+Q==}
+    peerDependencies:
+      react: '>=18.2.0'
 
   '@rolldown/pluginutils@1.0.0-rc.3':
     resolution: {integrity: sha512-eybk3TjzzzV97Dlj5c+XrBFW57eTNhzod66y9HrBlzJ6NsCrWCp/2kaPS3K9wJmurBC0Tdw4yPjXKZqlznim3Q==}
@@ -4919,6 +4930,10 @@ snapshots:
       three: 0.183.2
     transitivePeerDependencies:
       - '@types/three'
+
+  '@remixicon/react@4.9.0(react@19.2.5)':
+    dependencies:
+      react: 19.2.5
 
   '@rolldown/pluginutils@1.0.0-rc.3': {}
 

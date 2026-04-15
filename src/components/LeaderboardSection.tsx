@@ -1,14 +1,7 @@
-import { useMemo, useState } from "react"
+import { useMemo } from "react"
 
 import { ScrollReveal, ScrollRevealGroup, ScrollRevealItem } from "@/components/ScrollReveal"
 import { Button } from "@/components/ui/button"
-
-type LeaderboardFilter =
-  | "top-aura"
-  | "top-rep"
-  | "builders"
-  | "researchers"
-  | "governance"
 
 type LeaderboardProfile = {
   profile: string
@@ -24,14 +17,6 @@ type LeaderboardProfile = {
     "Community Member": number
   }
 }
-
-const filters: Array<{ id: LeaderboardFilter; label: string }> = [
-  { id: "top-aura", label: "Top Aura" },
-  { id: "top-rep", label: "Top REP" },
-  { id: "builders", label: "Builders" },
-  { id: "researchers", label: "Researchers" },
-  { id: "governance", label: "Governance" },
-]
 
 const profiles: LeaderboardProfile[] = [
   {
@@ -176,84 +161,31 @@ const profiles: LeaderboardProfile[] = [
   },
 ]
 
-const categoryMap: Record<
-  Exclude<LeaderboardFilter, "top-aura" | "top-rep">,
-  keyof LeaderboardProfile["categoryRep"]
-> = {
-  builders: "Builder",
-  researchers: "Researcher",
-  governance: "Governance Participant",
-}
-
 function formatNumber(value: number) {
   return new Intl.NumberFormat("en-US").format(value)
 }
 
 export function LeaderboardSection() {
-  const [activeFilter, setActiveFilter] = useState<LeaderboardFilter>("top-aura")
-
   const filteredProfiles = useMemo(() => {
-    if (activeFilter === "top-aura") {
-      return [...profiles].sort((a, b) => b.aura - a.aura)
-    }
-
-    if (activeFilter === "top-rep") {
-      return [...profiles].sort((a, b) => b.totalRep - a.totalRep)
-    }
-
-    const category = categoryMap[activeFilter]
-
-    return [...profiles]
-      .filter((profile) => profile.categoryRep[category] > 0)
-      .sort((a, b) => b.categoryRep[category] - a.categoryRep[category])
-  }, [activeFilter])
+    return [...profiles].sort((a, b) => b.aura - a.aura)
+  }, [])
 
   return (
     <section
       id="leaderboard"
       className="mx-auto max-w-7xl px-6 py-16 md:px-8 md:py-24"
     >
-      <ScrollReveal className="rounded-[2rem] border border-white/10 bg-black/34 p-8 shadow-[0_24px_80px_rgba(0,0,0,0.32)] backdrop-blur-xl md:p-10">
+      <ScrollReveal className="overflow-hidden rounded-none border border-white/10 bg-black/34 p-8 shadow-[0_24px_80px_rgba(0,0,0,0.32)] backdrop-blur-xl md:p-10">
         <ScrollRevealGroup className="max-w-3xl">
           <ScrollRevealItem className="text-xs uppercase tracking-[0.24em] text-white/50">
             Leaderboard
           </ScrollRevealItem>
           <ScrollRevealItem className="mt-4 text-3xl font-semibold tracking-tight text-white md:text-5xl">
-            The most aligned participants in the Uniswap economy, updated every
-            epoch.
-          </ScrollRevealItem>
-          <ScrollRevealItem className="mt-5 text-base leading-8 text-white/68 md:text-lg">
-            Each row links to the user&apos;s full profile. The leaderboard has
-            tabbed filters so visitors can explore by overall Aura, total REP,
-            or drill into a specific category. This makes the reputation system
-            tangible the moment someone lands on the page.
+            The most aligned participants in the Uniswap economy
           </ScrollRevealItem>
         </ScrollRevealGroup>
 
-        <ScrollRevealGroup className="mt-8 flex flex-wrap gap-3" delayChildren={0.08}>
-          {filters.map((filter) => {
-            const isActive = filter.id === activeFilter
-
-            return (
-              <ScrollRevealItem key={filter.id}>
-                <button
-                  type="button"
-                  onClick={() => setActiveFilter(filter.id)}
-                  className={[
-                    "rounded-full border px-4 py-2 text-sm transition-colors",
-                    isActive
-                      ? "border-[#FC72FF]/60 bg-[#FC72FF]/18 text-white"
-                      : "border-white/10 bg-white/4 text-white/72 hover:border-white/18 hover:bg-white/8",
-                  ].join(" ")}
-                >
-                  {filter.label}
-                </button>
-              </ScrollRevealItem>
-            )
-          })}
-        </ScrollRevealGroup>
-
-        <ScrollReveal className="mt-8 overflow-x-auto rounded-[1.5rem] border border-white/10 bg-white/[0.03]">
+        <ScrollReveal className="mt-8 overflow-x-auto rounded-none border border-white/10 bg-white/[0.03]">
           <div className="min-w-[720px]">
             <ScrollRevealItem className="grid grid-cols-[0.55fr_1.4fr_1fr_1.3fr_1fr] gap-4 border-b border-white/10 px-4 py-4 text-xs uppercase tracking-[0.18em] text-white/45 md:px-6">
               <span>Rank</span>
@@ -265,7 +197,7 @@ export function LeaderboardSection() {
 
             <ScrollRevealGroup delayChildren={0.04} staggerChildren={0.045}>
               {filteredProfiles.map((profile, index) => (
-                <ScrollRevealItem key={`${activeFilter}-${profile.profile}`}>
+                <ScrollRevealItem key={profile.profile}>
                   <a
                     href="#get-started"
                     className="grid grid-cols-[0.55fr_1.4fr_1fr_1.3fr_1fr] gap-4 border-b border-white/8 px-4 py-4 text-sm text-white/74 transition-colors hover:bg-white/[0.04] last:border-b-0 md:px-6"
@@ -285,7 +217,8 @@ export function LeaderboardSection() {
         <ScrollReveal className="mt-8" delay={0.1}>
           <Button
             asChild
-            className="h-11 rounded-full border border-[#FC72FF]/40 bg-[#FC72FF]/18 px-6 text-white hover:bg-[#FC72FF]/24"
+            variant="brand"
+            className="h-11 px-6"
           >
             <a href="#get-started">View Full Leaderboard</a>
           </Button>

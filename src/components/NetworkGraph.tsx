@@ -126,7 +126,7 @@ function NetworkScene({
 
   const tempObject = useMemo(() => new THREE.Object3D(), [])
   const projectedVector = useMemo(() => new THREE.Vector3(), [])
-  const defaultCameraPosition = useMemo(() => new THREE.Vector3(0, 2, 64), [])
+  const defaultCameraPosition = useMemo(() => new THREE.Vector3(0, 2, 72), [])
   const defaultTargetPosition = useMemo(() => new THREE.Vector3(0, 0, 0), [])
   const zoomOutCameraPosition = useMemo(() => new THREE.Vector3(0, 10, 112), [])
   const zoomOutTargetPosition = useMemo(() => new THREE.Vector3(0, -4, 0), [])
@@ -579,7 +579,7 @@ export default function NetworkGraph(props: NetworkGraphProps) {
 
   return (
     <Canvas
-      camera={{ fov: 42, near: 0.1, far: 240, position: [0, 0, 64] }}
+      camera={{ fov: 42, near: 0.1, far: 240, position: [0, 2, 72] }}
       dpr={[1, 1.75]}
       gl={{ antialias: true, alpha: true, powerPreference: "high-performance" }}
       onPointerMissed={() => {

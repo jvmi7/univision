@@ -25,7 +25,7 @@ export function NodeTooltip({ node, position }: NodeTooltipProps) {
             transform: "translate(-50%, calc(-100% - 20px))",
           }}
         >
-          <div className="overflow-hidden rounded-2xl border border-white/12 bg-black/80 shadow-[0_20px_70px_rgba(0,0,0,0.45)] backdrop-blur-xl">
+          <div className="overflow-hidden rounded-none border border-white/12 bg-black/80 shadow-[0_20px_70px_rgba(0,0,0,0.45)] backdrop-blur-xl">
             <div
               className="h-1.5 w-full"
               style={{ backgroundColor: NODE_COLORS[node.type] }}
@@ -37,7 +37,7 @@ export function NodeTooltip({ node, position }: NodeTooltipProps) {
                 </p>
                 <div className="mt-2 flex items-center gap-3">
                   <span
-                    className="size-3 rounded-full shadow-[0_0_18px_currentColor]"
+                    className="size-3 rounded-none shadow-[0_0_18px_currentColor]"
                     style={{ backgroundColor: NODE_COLORS[node.type] }}
                   />
                   <p className="text-lg font-medium capitalize text-white">
@@ -47,7 +47,7 @@ export function NodeTooltip({ node, position }: NodeTooltipProps) {
               </div>
 
               <div className="grid grid-cols-2 gap-3 text-sm">
-                <div className="rounded-xl border border-white/8 bg-white/4 p-3">
+                <div className="rounded-none border border-white/8 bg-white/4 p-3">
                   <p className="text-xs uppercase tracking-[0.18em] text-white/40">
                     Aura
                   </p>
@@ -55,7 +55,7 @@ export function NodeTooltip({ node, position }: NodeTooltipProps) {
                     {node.auraScore}
                   </p>
                 </div>
-                <div className="rounded-xl border border-white/8 bg-white/4 p-3">
+                <div className="rounded-none border border-white/8 bg-white/4 p-3">
                   <p className="text-xs uppercase tracking-[0.18em] text-white/40">
                     Sparks
                   </p>
