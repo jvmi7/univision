@@ -124,6 +124,16 @@ const THEME = {
 
 const VIEW_HEIGHT = 10
 
+/** One-shot scene intro: uniform zoom + staggered vertical settle (seconds) */
+const MEADOW_INTRO_DURATION_SEC = 1.95
+/** Slightly “zoomed out” at t=0; eases to 1 with ortho bleed math unchanged */
+const MEADOW_INTRO_SCALE_START = 0.904
+
+function easeOutCubic(t: number): number {
+  const x = Math.min(1, Math.max(0, t))
+  return 1 - (1 - x) ** 3
+}
+
 function updateOrthographicCamera(
   camera: THREE.OrthographicCamera,
   width: number,
@@ -1379,6 +1389,14 @@ export function MeadowScene({ theme: themeProp = "auto" }: MeadowSceneProps) {
 
     worldGroup.add(layerSky, layerMountains, cloudGroup, stars, layerTrees, layerMeadow, layerForegroundPines)
 
+    let introK = MEADOW_INTRO_SCALE_START
+    const syncWorldScale = () => {
+      const dim = bleedDimensions(camera)
+      const sx = dim.w / baseBleedW
+      worldGroup.scale.set(sx * introK, introK, 1)
+    }
+    syncWorldScale()
+
     const atmosphereMat = createAtmosphereMaterial()
     const atmosphereMesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), atmosphereMat)
     atmosphereMesh.frustumCulled = false
@@ -1437,6 +1455,11 @@ export function MeadowScene({ theme: themeProp = "auto" }: MeadowSceneProps) {
 
     const animate = () => {
       const t = clock.getElapsedTime()
+      const introP = Math.min(1, t / MEADOW_INTRO_DURATION_SEC)
+      const introEase = easeOutCubic(introP)
+      introK = THREE.MathUtils.lerp(MEADOW_INTRO_SCALE_START, 1, introEase)
+      syncWorldScale()
+
       skyMat.uniforms.uTime.value = t
       meadowMat.uniforms.uTime.value = t
       atmosphereMat.uniforms.uTime.value = t
@@ -1445,10 +1468,14 @@ export function MeadowScene({ theme: themeProp = "auto" }: MeadowSceneProps) {
       pointer.x += (pointer.tx - pointer.x) * 0.04
       pointer.y += (pointer.ty - pointer.y) * 0.04
 
+      const introLift = 1 - introEase
       parallaxLayers.forEach((group) => {
         const k = (group.userData.parallax as number) ?? 0
+        /* Farther layers (smaller parallax) start lower and rise into frame */
+        const depth = Math.min(1, k / 0.16)
+        const baseIntroY = -1.08 * (1 - depth) * introLift
         group.position.x = pointer.x * k * 0.45
-        group.position.y = pointer.y * k * 0.28
+        group.position.y = baseIntroY + pointer.y * k * 0.28
       })
 
       if (cloudGroup.visible) {
@@ -1494,9 +1521,7 @@ export function MeadowScene({ theme: themeProp = "auto" }: MeadowSceneProps) {
       height = container.clientHeight
       renderer.setSize(width, height, false)
       updateOrthographicCamera(camera, width, height)
-      const dim = bleedDimensions(camera)
-      const sx = dim.w / baseBleedW
-      worldGroup.scale.set(sx, 1, 1)
+      syncWorldScale()
     }
 
     const ro = new ResizeObserver(onResize)

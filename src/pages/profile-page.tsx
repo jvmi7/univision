@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react"
+import { animate, motion, useReducedMotion } from "framer-motion"
+import { useEffect, useRef, useState } from "react"
 import { MoonStar, SunMedium } from "lucide-react"
 import { Link } from "react-router-dom"
 
@@ -7,6 +8,7 @@ import { getUnityPetPortraitUrl } from "@/components/unity-pet/unity-pet-assets"
 import { UnityPetCard } from "@/components/unity-pet/unity-pet-card"
 import type { UnityPetStats } from "@/components/unity-pet/unity-pet-types"
 import { useDocumentTheme } from "@/hooks/use-document-theme"
+import { cn } from "@/lib/utils"
 import { useTheme } from "@/components/theme-provider"
 import { Button } from "@/components/ui/button"
 
@@ -19,11 +21,61 @@ const demoPetStats: UnityPetStats = {
   communityMember: 31,
 }
 
+const zeroPetStats: UnityPetStats = {
+  researcher: 0,
+  builder: 0,
+  trader: 0,
+  liquidityProvider: 0,
+  governanceParticipant: 0,
+  communityMember: 0,
+}
+
+const TARGET_AURA_POINTS = 72
+const TARGET_ASSIGNED_AURA = 24
+
+/** Meadow-only beat: card stays fully hidden, then springs in (real-time `setTimeout`, not motion `delay`). */
+const PET_CARD_ENTRANCE_DELAY_S = 1.5
+const PET_CARD_ENTRANCE_DELAY_MS = Math.round(PET_CARD_ENTRANCE_DELAY_S * 1000)
+
 export function ProfilePage() {
   const { setTheme } = useTheme()
   const resolved = useDocumentTheme()
   const isDark = resolved === "dark"
   const [petName, setPetName] = useState("Companion")
+  const reduceMotion = useReducedMotion()
+  const [cardStats, setCardStats] = useState<UnityPetStats>(zeroPetStats)
+  const [auraPoints, setAuraPoints] = useState(0)
+  /** After hidden wait: card is allowed to spring in. */
+  const [cardRevealStarted, setCardRevealStarted] = useState(false)
+  const auraAnimRef = useRef<ReturnType<typeof animate> | null>(null)
+  const statsRevealGuardRef = useRef(false)
+
+  const assignedAura =
+    auraPoints >= TARGET_AURA_POINTS
+      ? TARGET_ASSIGNED_AURA
+      : Math.round((TARGET_ASSIGNED_AURA * auraPoints) / TARGET_AURA_POINTS)
+
+  useEffect(() => {
+    if (!reduceMotion) return
+    setCardRevealStarted(true)
+    setCardStats(demoPetStats)
+    setAuraPoints(TARGET_AURA_POINTS)
+  }, [reduceMotion])
+
+  useEffect(() => {
+    if (reduceMotion) return
+    const id = window.setTimeout(() => {
+      setCardRevealStarted(true)
+    }, PET_CARD_ENTRANCE_DELAY_MS)
+    return () => window.clearTimeout(id)
+  }, [reduceMotion])
+
+  useEffect(() => {
+    return () => {
+      auraAnimRef.current?.stop()
+      auraAnimRef.current = null
+    }
+  }, [])
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -75,22 +127,72 @@ export function ProfilePage() {
       </div>
 
       <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center p-4">
-        <UnityPetCard
-          assignedReputationAura={24}
-          auraPoints={72}
-          className="pointer-events-auto w-full max-w-[min(44rem,calc(100vw-2rem))] border-white/25 bg-white/[0.06] shadow-none backdrop-blur-2xl dark:border-white/15 dark:bg-black/[0.12]"
-          imageAlt={`${petName} portrait`}
-          imageSrc={getUnityPetPortraitUrl({
-            kind: "hatched",
-            theme: "cute",
-            stage: 2,
-          })}
-          petName={petName}
-          onAssignReputation={() => {}}
-          onPetNameChange={setPetName}
-          size="large"
-          stats={demoPetStats}
-        />
+        <motion.div
+          className={cn(
+            "w-full max-w-[min(44rem,calc(100vw-2rem))]",
+            reduceMotion || cardRevealStarted ? "pointer-events-auto" : "pointer-events-none",
+          )}
+          initial={reduceMotion ? false : { opacity: 0, y: 28 }}
+          animate={
+            reduceMotion || cardRevealStarted
+              ? { opacity: 1, y: 0 }
+              : { opacity: 0, y: 28 }
+          }
+          transition={
+            reduceMotion
+              ? { duration: 0 }
+              : {
+                  opacity: {
+                    type: "spring",
+                    stiffness: 68,
+                    damping: 24,
+                    mass: 1.15,
+                  },
+                  y: {
+                    type: "spring",
+                    stiffness: 44,
+                    damping: 18,
+                    mass: 1.12,
+                  },
+                }
+          }
+          onAnimationComplete={() => {
+            if (reduceMotion || !cardRevealStarted) return
+            if (statsRevealGuardRef.current) return
+            statsRevealGuardRef.current = true
+            setCardStats(demoPetStats)
+            auraAnimRef.current?.stop()
+            auraAnimRef.current = animate(0, TARGET_AURA_POINTS, {
+              type: "spring",
+              stiffness: 36,
+              damping: 13,
+              mass: 1.25,
+              restDelta: 0.35,
+              onUpdate: (latest) =>
+                setAuraPoints(
+                  Math.min(TARGET_AURA_POINTS, Math.max(0, Math.round(latest))),
+                ),
+            })
+          }}
+        >
+          <UnityPetCard
+            assignedReputationAura={assignedAura}
+            auraPoints={auraPoints}
+            className="w-full border-white/25 bg-white/[0.06] shadow-none backdrop-blur-2xl dark:border-white/15 dark:bg-black/[0.12]"
+            statFillLayout="spring"
+            imageAlt={`${petName} portrait`}
+            imageSrc={getUnityPetPortraitUrl({
+              kind: "hatched",
+              theme: "cute",
+              stage: 2,
+            })}
+            petName={petName}
+            onAssignReputation={() => {}}
+            onPetNameChange={setPetName}
+            size="large"
+            stats={cardStats}
+          />
+        </motion.div>
       </div>
     </main>
   )

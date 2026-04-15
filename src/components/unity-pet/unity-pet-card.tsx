@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils"
 
 import { AuraPointsBadge } from "./aura-points-badge"
 import { MEADOW_STAT_PRESETS } from "./meadow-stat-presets"
-import { PetStatBar } from "./pet-stat-bar"
+import { PetStatBar, type PetStatFillLayout } from "./pet-stat-bar"
 import {
   clampAuraPoints,
   UNITY_PET_DEFAULT_STAT_LABELS,
@@ -32,6 +32,8 @@ export type UnityPetCardProps = {
   size?: "default" | "large"
   /** Meadow uses the glass track + white fill; default uses white fill with a simpler track. */
   statPalette?: "meadow" | "default"
+  /** How stat bar fills animate when `value` changes (e.g. intro from 0). */
+  statFillLayout?: PetStatFillLayout
   className?: string
 }
 
@@ -47,6 +49,7 @@ export function UnityPetCard({
   statLabels,
   size = "default",
   statPalette = "meadow",
+  statFillLayout = "css",
   className,
 }: UnityPetCardProps) {
   const isLarge = size === "large"
@@ -215,7 +218,7 @@ export function UnityPetCard({
             )}
           >
             <span className="font-semibold tabular-nums text-black dark:text-white">
-              {assignedAura}
+              {totalAura - assignedAura}
             </span>
             <span className="text-black/70 dark:text-white/70"> of </span>
             <span className="font-semibold tabular-nums text-black dark:text-white">
@@ -223,7 +226,7 @@ export function UnityPetCard({
             </span>
             <span className="text-black/70 dark:text-white/70">
               {" "}
-              aura assigned to reputation
+              points available
             </span>
           </p>
           <Button
@@ -250,6 +253,7 @@ export function UnityPetCard({
             <PetStatBar
               key={key}
               fillClassName={meadow.fill}
+              fillLayout={statFillLayout}
               label={statLabels?.[key] ?? UNITY_PET_DEFAULT_STAT_LABELS[key]}
               size={isLarge ? "large" : "default"}
               trackClassName={useMeadowStats ? meadow.track : undefined}

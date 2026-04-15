@@ -358,13 +358,10 @@ function Home() {
               </ScrollRevealGroup>
               <ScrollReveal delay={0.08}>
                 <div className="flex flex-wrap items-center gap-3">
-                  <Button asChild variant="brand" className="h-11 px-6">
-                    <a href="#leaderboard">Launch App</a>
-                  </Button>
                   <Button
                     asChild
-                    variant="outline"
-                    className="h-11 border-white/20 bg-white/5 px-6 text-white hover:bg-white/10"
+                    variant="brand"
+                    className="h-11 px-6"
                   >
                     <Link to="/profile">Enter experience</Link>
                   </Button>
