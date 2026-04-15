@@ -16,12 +16,12 @@ export function HeroOverlay({ onExploreGraph: _onExploreGraph }: HeroOverlayProp
   })
 
   useMotionValueEvent(scrollYProgress, "change", (value) => {
-    if (value > 0.16) {
+    if (value > 0.02) {
       setIsUnity(true)
       return
     }
 
-    if (value < 0.08) {
+    if (value < 0.01) {
       setIsUnity(false)
     }
   })
@@ -90,7 +90,6 @@ export function HeroOverlay({ onExploreGraph: _onExploreGraph }: HeroOverlayProp
                     : "0 0 36px rgba(252,114,255,0.3)",
                 }}
                 transition={{
-                  delay: isUnity ? 0.18 : 0,
                   duration: 0.45,
                   ease: [0.22, 1, 0.36, 1],
                 }}
@@ -122,7 +121,6 @@ export function HeroOverlay({ onExploreGraph: _onExploreGraph }: HeroOverlayProp
                     : "0 0 36px rgba(252,114,255,0.3)",
                 }}
                 transition={{
-                  delay: isUnity ? 0.18 : 0,
                   duration: 0.45,
                   ease: [0.22, 1, 0.36, 1],
                 }}
