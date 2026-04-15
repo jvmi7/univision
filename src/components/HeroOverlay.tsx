@@ -1,6 +1,8 @@
 import { motion, useMotionValueEvent, useScroll } from "framer-motion"
 import { useLayoutEffect, useRef, useState } from "react"
 
+import { Button } from "@/components/ui/button"
+
 type HeroOverlayProps = {
   onExploreGraph?: () => void
 }
@@ -62,6 +64,16 @@ export function HeroOverlay({ onExploreGraph: _onExploreGraph }: HeroOverlayProp
       >
         <div className="sticky top-0 flex h-svh items-center justify-center">
           <div className="pointer-events-none absolute inset-y-0 left-1/2 w-screen -translate-x-1/2 bg-[linear-gradient(180deg,rgba(6,6,8,0.58)_0%,rgba(6,6,8,0.52)_48%,rgba(6,6,8,0.34)_68%,rgba(6,6,8,0.14)_82%,rgba(6,6,8,0)_100%)]" />
+          <motion.div
+            initial={{ opacity: 0, y: -12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+            className="absolute top-6 right-0 z-20 md:top-8"
+          >
+            <Button asChild variant="brand" className="h-11 px-6">
+              <a href="#hero-section">Enter Experience</a>
+            </Button>
+          </motion.div>
           <motion.div
             initial={{ opacity: 0, y: 18 }}
             animate={{ opacity: 1, y: 0 }}
