@@ -1,75 +1,385 @@
-import { MoonStar, SunMedium } from "lucide-react"
+import { lazy, Suspense, useEffect, useState } from "react"
 
-import { SplashSphere } from "@/components/splash-sphere"
-import { useTheme } from "@/components/theme-provider"
+import { HeroOverlay } from "@/components/HeroOverlay"
+import { LeaderboardSection } from "@/components/LeaderboardSection"
+import { NodeTooltip } from "@/components/NodeTooltip"
+import { ScrollReveal, ScrollRevealGroup, ScrollRevealItem } from "@/components/ScrollReveal"
 import { Button } from "@/components/ui/button"
+import type { NetworkNode } from "@/lib/generateMockData"
+
+const NetworkGraph = lazy(() => import("@/components/NetworkGraph"))
+
+const howItWorksItems = [
+  {
+    title: "Hold UNI. Build Aura.",
+    body: "Your Aura score grows automatically the longer you hold UNI. No staking. No lockups. Just hold, and your alignment speaks for itself. Providing liquidity earns a 2x Aura boost.",
+  },
+  {
+    title: "Earn REP from the community.",
+    body: "Aura holders can recognize others by assigning REP in categories like Builder, Governance Participant, or Community Member. REP is permanent and public - a lasting record of your contributions.",
+  },
+  {
+    title: "Your profile, your identity.",
+    body: "Claim a unique onchain username, link your wallets, and watch your Unigotchi evolve as your reputation grows. Your profile is a living snapshot of everything you've done in the Uniswap ecosystem.",
+  },
+]
+
+const repCategories = [
+  {
+    name: "Researcher",
+    description:
+      "Advancing knowledge of DeFi mechanisms and protocol design.",
+  },
+  {
+    name: "Builder",
+    description:
+      "Shipping tools, interfaces, and integrations that expand the ecosystem.",
+  },
+  {
+    name: "Trader",
+    description: "Actively participating in markets across Uniswap pools.",
+  },
+  {
+    name: "Liquidity Provider",
+    description: "Supplying depth and stability to the protocol.",
+  },
+  {
+    name: "Governance Participant",
+    description: "Engaging in proposals, voting, and delegation.",
+  },
+  {
+    name: "Community Member",
+    description: "Showing up, helping others, and strengthening the culture.",
+  },
+]
+
+const numbers = [
+  { value: "381,113", label: "UNI holders." },
+  { value: "One", label: "reputation layer." },
+  { value: "Zero", label: "gatekeepers." },
+]
 
 export function App() {
-  const { theme, setTheme } = useTheme()
-  const isDarkTheme = theme === "dark"
+  const [selectedNode, setSelectedNode] = useState<NetworkNode | null>(null)
+  const [tooltipPosition, setTooltipPosition] = useState<{
+    x: number
+    y: number
+  } | null>(null)
+  const [exploreSignal, setExploreSignal] = useState(0)
+  const [scrollProgress, setScrollProgress] = useState(0)
+
+  useEffect(() => {
+    let rafId = 0
+
+    const updateScrollProgress = () => {
+      const scrollHeight =
+        document.documentElement.scrollHeight - window.innerHeight
+      const nextProgress = scrollHeight > 0 ? window.scrollY / scrollHeight : 0
+      const clampedProgress = Math.min(Math.max(nextProgress, 0), 1)
+
+      setScrollProgress((current) =>
+        Math.abs(current - clampedProgress) < 0.004 ? current : clampedProgress
+      )
+    }
+
+    const handleScroll = () => {
+      cancelAnimationFrame(rafId)
+      rafId = requestAnimationFrame(updateScrollProgress)
+    }
+
+    updateScrollProgress()
+    window.addEventListener("scroll", handleScroll, { passive: true })
+    window.addEventListener("resize", handleScroll)
+
+    return () => {
+      cancelAnimationFrame(rafId)
+      window.removeEventListener("scroll", handleScroll)
+      window.removeEventListener("resize", handleScroll)
+    }
+  }, [])
 
   return (
-    <main className="relative isolate min-h-svh overflow-hidden bg-background text-foreground">
-      <div className="absolute inset-0 -z-20 bg-[radial-gradient(circle_at_top_left,rgba(139,92,246,0.24),transparent_34%),radial-gradient(circle_at_bottom_right,rgba(59,130,246,0.16),transparent_28%)]" />
-      <div className="absolute inset-x-0 top-0 -z-10 h-px bg-gradient-to-r from-transparent via-border to-transparent" />
+    <main className="relative min-h-svh bg-[#0D0D0E] text-white">
+      <div className="fixed inset-0">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_15%_20%,rgba(252,114,255,0.18),transparent_0,transparent_34%),radial-gradient(circle_at_82%_24%,rgba(255,155,241,0.16),transparent_0,transparent_30%),radial-gradient(circle_at_50%_85%,rgba(252,114,255,0.12),transparent_0,transparent_28%)]" />
+        <Suspense
+          fallback={
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(252,114,255,0.18),transparent_35%),radial-gradient(circle_at_80%_30%,rgba(255,170,246,0.12),transparent_30%)]" />
+          }
+        >
+          <div className="absolute inset-0">
+            <NetworkGraph
+              exploreSignal={exploreSignal}
+              onSelectionChange={setSelectedNode}
+              onTooltipPositionChange={setTooltipPosition}
+              scrollProgress={scrollProgress}
+            />
+          </div>
+        </Suspense>
+        <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(13,13,14,0.72),rgba(13,13,14,0.28)_24%,rgba(13,13,14,0.16)_55%,rgba(13,13,14,0.72))]" />
+      </div>
 
-      <section className="mx-auto grid min-h-svh max-w-7xl gap-12 px-6 py-10 lg:grid-cols-[1.05fr_0.95fr] lg:items-center lg:px-10">
-        <div className="flex max-w-2xl min-w-0 flex-col gap-6">
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="inline-flex w-fit items-center rounded-full border border-border/70 bg-background/80 px-3 py-1 text-xs font-medium uppercase tracking-[0.22em] text-muted-foreground backdrop-blur">
-              Univision splash
+      <div className="relative z-10">
+        <HeroOverlay
+          onExploreGraph={() => setExploreSignal((current) => current + 1)}
+        />
+
+        <section
+          id="hero-section"
+          className="mx-auto max-w-7xl px-6 py-16 md:px-8 md:py-24"
+        >
+          <div className="grid gap-6 lg:grid-cols-[1.05fr_0.95fr]">
+            <ScrollReveal className="rounded-[2rem] border border-white/10 bg-black/34 p-8 shadow-[0_24px_80px_rgba(0,0,0,0.32)] backdrop-blur-xl md:p-10">
+              <ScrollRevealGroup>
+                <ScrollRevealItem className="text-xs uppercase tracking-[0.24em] text-white/50">
+                  Univision
+                </ScrollRevealItem>
+                <ScrollRevealItem className="mt-4 text-3xl font-semibold tracking-tight text-white md:text-5xl">
+                  Your Reputation in the Uniswap Economy
+                </ScrollRevealItem>
+                <ScrollRevealItem className="mt-5 max-w-2xl text-base leading-8 text-white/68 md:text-lg">
+                  Univision turns your UNI into more than a token. Hold it,
+                  contribute, and watch your onchain identity come to life.
+                </ScrollRevealItem>
+
+                <ScrollRevealGroup className="mt-8 flex flex-wrap gap-3" delayChildren={0.1}>
+                  <ScrollRevealItem>
+                    <Button
+                      asChild
+                      className="h-11 rounded-full border border-[#FC72FF]/40 bg-[#FC72FF]/18 px-6 text-white hover:bg-[#FC72FF]/24"
+                    >
+                      <a href="#get-started">Explore Your Profile</a>
+                    </Button>
+                  </ScrollRevealItem>
+                  <ScrollRevealItem>
+                    <Button
+                      asChild
+                      variant="outline"
+                      className="h-11 rounded-full border-white/14 bg-white/4 px-6 text-white hover:bg-white/10"
+                    >
+                      <a href="#what-is-univision">Learn More</a>
+                    </Button>
+                  </ScrollRevealItem>
+                </ScrollRevealGroup>
+              </ScrollRevealGroup>
+            </ScrollReveal>
+
+            <ScrollRevealGroup className="grid gap-6" delayChildren={0.08}>
+              {[
+                "Aura reflects how long you've been aligned with Uniswap.",
+                "Providing liquidity compounds that signal with a 2x boost.",
+                "REP captures how the community sees your contributions.",
+              ].map((line) => (
+                <ScrollRevealItem
+                  key={line}
+                  className="rounded-[1.5rem] border border-white/8 bg-white/4 p-6 backdrop-blur-xl"
+                >
+                  <p className="text-sm leading-7 text-white/68">{line}</p>
+                </ScrollRevealItem>
+              ))}
+            </ScrollRevealGroup>
+          </div>
+        </section>
+
+        <section
+          id="what-is-univision"
+          className="mx-auto max-w-7xl px-6 py-16 md:px-8 md:py-24"
+        >
+          <ScrollReveal className="rounded-[2rem] border border-white/10 bg-black/34 p-8 shadow-[0_24px_80px_rgba(0,0,0,0.32)] backdrop-blur-xl md:p-10">
+            <ScrollRevealGroup className="max-w-4xl">
+              <ScrollRevealItem className="text-xs uppercase tracking-[0.24em] text-white/50">
+                What is Univision?
+              </ScrollRevealItem>
+              <ScrollRevealItem className="mt-4 text-3xl font-semibold tracking-tight text-white md:text-5xl">
+                A reputation layer built on top of the UNI token.
+              </ScrollRevealItem>
+              <ScrollRevealGroup className="mt-6 space-y-5 text-base leading-8 text-white/68 md:text-lg">
+                <ScrollRevealItem>
+                  <p>
+                    Univision is a reputation layer built on top of the UNI token.
+                    It recognizes the people who show up - not just the capital
+                    that passes through.
+                  </p>
+                </ScrollRevealItem>
+                <ScrollRevealItem>
+                  <p>
+                    Every UNI holder earns Aura, a score that reflects how long
+                    you&apos;ve been part of the ecosystem. The longer you hold, the
+                    more your presence is recognized. Provide liquidity and your
+                    Aura grows even faster.
+                  </p>
+                </ScrollRevealItem>
+                <ScrollRevealItem>
+                  <p>
+                    But alignment is only half the picture. The community also
+                    assigns REP - reputation points across categories like
+                    Builder, Researcher, Trader, and more. REP is how the network
+                    says &quot;this person contributes.&quot;
+                  </p>
+                </ScrollRevealItem>
+                <ScrollRevealItem>
+                  <p>
+                    Together, Aura and REP give you a living onchain profile that
+                    reflects who you are in the Uniswap economy.
+                  </p>
+                </ScrollRevealItem>
+              </ScrollRevealGroup>
+            </ScrollRevealGroup>
+          </ScrollReveal>
+        </section>
+
+        <section
+          id="how-it-works"
+          className="mx-auto max-w-7xl px-6 py-16 md:px-8 md:py-24"
+        >
+          <ScrollReveal className="rounded-[2rem] border border-white/10 bg-black/34 p-8 shadow-[0_24px_80px_rgba(0,0,0,0.32)] backdrop-blur-xl md:p-10">
+            <ScrollRevealGroup className="max-w-3xl">
+              <ScrollRevealItem className="text-xs uppercase tracking-[0.24em] text-white/50">
+                How It Works
+              </ScrollRevealItem>
+              <ScrollRevealItem className="mt-4 text-3xl font-semibold tracking-tight text-white md:text-5xl">
+                Your identity grows from holding, contributing, and being seen.
+              </ScrollRevealItem>
+            </ScrollRevealGroup>
+
+            <ScrollRevealGroup className="mt-10 grid gap-4 md:grid-cols-3" delayChildren={0.08}>
+              {howItWorksItems.map((item) => (
+                <ScrollRevealItem
+                  key={item.title}
+                  className="rounded-[1.5rem] border border-white/8 bg-white/4 p-6"
+                >
+                  <p className="text-sm font-medium text-[#FC72FF]">{item.title}</p>
+                  <p className="mt-3 text-sm leading-7 text-white/62">{item.body}</p>
+                </ScrollRevealItem>
+              ))}
+            </ScrollRevealGroup>
+          </ScrollReveal>
+        </section>
+
+        <section
+          id="why-it-matters"
+          className="mx-auto max-w-7xl px-6 py-16 md:px-8 md:py-24"
+        >
+          <ScrollReveal className="rounded-[2rem] border border-white/10 bg-[linear-gradient(180deg,rgba(252,114,255,0.12),rgba(13,13,14,0.52))] p-8 backdrop-blur-xl md:p-10">
+            <div className="grid gap-8 lg:grid-cols-[0.95fr_1.05fr] lg:items-end">
+              <ScrollRevealGroup>
+                <ScrollRevealItem className="text-xs uppercase tracking-[0.24em] text-white/50">
+                  Why It Matters
+                </ScrollRevealItem>
+                <ScrollRevealItem className="mt-4 text-3xl font-semibold tracking-tight md:text-5xl">
+                  History and contribution finally become visible.
+                </ScrollRevealItem>
+              </ScrollRevealGroup>
+              <ScrollRevealGroup className="space-y-5 text-base leading-8 text-white/68 md:text-lg">
+                <ScrollRevealItem>
+                  <p>
+                    Uniswap moves billions in volume. But until now, there&apos;s
+                    been no way to distinguish someone who&apos;s been here since day
+                    one from someone who showed up yesterday.
+                  </p>
+                </ScrollRevealItem>
+                <ScrollRevealItem>
+                  <p>
+                    Univision changes that. Your history matters. Your
+                    contributions are visible. And the people building,
+                    governing, and supporting the protocol finally have a way to
+                    be seen.
+                  </p>
+                </ScrollRevealItem>
+              </ScrollRevealGroup>
             </div>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => setTheme(isDarkTheme ? "light" : "dark")}
-            >
-              {isDarkTheme ? <SunMedium /> : <MoonStar />}
-              Toggle theme
-            </Button>
-          </div>
+          </ScrollReveal>
+        </section>
 
-          <div className="space-y-4">
-            <h1 className="max-w-xl text-5xl font-semibold tracking-tight text-balance sm:text-6xl">
-              A cinematic splash screen with a living 3D sphere.
-            </h1>
-            <p className="max-w-xl text-base leading-7 text-muted-foreground sm:text-lg">
-              This hero section combines Tailwind CSS, shadcn/ui, React
-              Three Fiber, and Three.js to render a softly animated spherical
-              orb inside a responsive canvas.
-            </p>
-          </div>
+        <LeaderboardSection />
 
-          <div className="flex flex-wrap items-center gap-3">
-            <Button size="lg">Enter experience</Button>
-            <Button size="lg" variant="outline">
-              View concept
-            </Button>
-          </div>
+        <section
+          id="rep-categories"
+          className="mx-auto max-w-7xl px-6 py-16 md:px-8 md:py-24"
+        >
+          <ScrollReveal className="rounded-[2rem] border border-white/10 bg-black/34 p-8 shadow-[0_24px_80px_rgba(0,0,0,0.32)] backdrop-blur-xl md:p-10">
+            <ScrollRevealGroup className="max-w-3xl">
+              <ScrollRevealItem className="text-xs uppercase tracking-[0.24em] text-white/50">
+                REP Categories
+              </ScrollRevealItem>
+              <ScrollRevealItem className="mt-4 text-3xl font-semibold tracking-tight text-white md:text-5xl">
+                Reputation points that describe how you show up.
+              </ScrollRevealItem>
+            </ScrollRevealGroup>
 
-          <div className="flex flex-wrap gap-6 text-sm text-muted-foreground">
-            <p>React + TypeScript + Vite</p>
-            <p>Tailwind CSS + shadcn/ui</p>
-            <p>Three.js canvas scene</p>
-          </div>
-        </div>
+            <ScrollRevealGroup className="mt-10 grid gap-4 md:grid-cols-2 xl:grid-cols-3" delayChildren={0.08}>
+              {repCategories.map((category) => (
+                <ScrollRevealItem
+                  key={category.name}
+                  className="rounded-[1.5rem] border border-white/8 bg-white/4 p-6"
+                >
+                  <p className="text-sm font-medium text-[#FC72FF]">
+                    {category.name}
+                  </p>
+                  <p className="mt-3 text-sm leading-7 text-white/62">
+                    {category.description}
+                  </p>
+                </ScrollRevealItem>
+              ))}
+            </ScrollRevealGroup>
+          </ScrollReveal>
+        </section>
 
-        <div className="relative">
-          <div className="absolute inset-8 -z-10 rounded-full bg-violet-500/20 blur-3xl" />
-          <div className="relative aspect-square overflow-hidden rounded-[2rem] border border-white/10 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.12),transparent_34%),linear-gradient(135deg,#020617_0%,#1e1b4b_45%,#020617_100%)] shadow-2xl shadow-violet-950/30">
-            <SplashSphere />
-            <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-slate-950 via-slate-950/70 to-transparent p-6">
-              <p className="text-sm font-medium text-white/90">
-                Rendered with React canvas and Three.js.
-              </p>
-              <p className="mt-1 text-sm text-white/60">
-                Press <kbd className="rounded bg-white/10 px-1.5 py-0.5">d</kbd>{" "}
-                to toggle the app theme.
-              </p>
+        <section
+          id="the-numbers"
+          className="mx-auto max-w-7xl px-6 py-16 md:px-8 md:py-24"
+        >
+          <ScrollReveal className="rounded-[2rem] border border-white/10 bg-black/34 p-8 shadow-[0_24px_80px_rgba(0,0,0,0.32)] backdrop-blur-xl md:p-10">
+            <ScrollRevealItem className="text-xs uppercase tracking-[0.24em] text-white/50">
+              The Numbers
+            </ScrollRevealItem>
+            <ScrollRevealGroup className="mt-8 grid gap-4 md:grid-cols-3" delayChildren={0.08}>
+              {numbers.map((item) => (
+                <ScrollRevealItem
+                  key={item.label}
+                  className="rounded-[1.5rem] border border-white/8 bg-white/4 p-6"
+                >
+                  <p className="text-3xl font-semibold tracking-tight text-white md:text-5xl">
+                    {item.value}
+                  </p>
+                  <p className="mt-3 text-sm uppercase tracking-[0.18em] text-white/50">
+                    {item.label}
+                  </p>
+                </ScrollRevealItem>
+              ))}
+            </ScrollRevealGroup>
+          </ScrollReveal>
+        </section>
+
+        <section
+          id="get-started"
+          className="mx-auto max-w-7xl px-6 py-16 md:px-8 md:py-24"
+        >
+          <ScrollReveal className="rounded-[2rem] border border-white/10 bg-[linear-gradient(180deg,rgba(252,114,255,0.14),rgba(13,13,14,0.5))] p-8 shadow-[0_24px_80px_rgba(0,0,0,0.32)] backdrop-blur-xl md:p-10">
+            <div className="grid gap-8 lg:grid-cols-[1fr_auto] lg:items-end">
+              <ScrollRevealGroup className="max-w-3xl">
+                <ScrollRevealItem className="text-xs uppercase tracking-[0.24em] text-white/50">
+                  Get Started
+                </ScrollRevealItem>
+                <ScrollRevealItem className="mt-4 text-3xl font-semibold tracking-tight text-white md:text-5xl">
+                  Claim your username. Link your wallet. See where you stand.
+                </ScrollRevealItem>
+              </ScrollRevealGroup>
+              <ScrollReveal delay={0.08}>
+                <Button
+                  asChild
+                  className="h-11 rounded-full border border-[#FC72FF]/40 bg-[#FC72FF]/18 px-6 text-white hover:bg-[#FC72FF]/24"
+                >
+                  <a href="#leaderboard">Launch App</a>
+                </Button>
+              </ScrollReveal>
             </div>
-          </div>
-        </div>
-      </section>
+          </ScrollReveal>
+        </section>
+
+        <div className="h-24" />
+        <NodeTooltip node={selectedNode} position={tooltipPosition} />
+      </div>
     </main>
   )
 }
