@@ -1,7 +1,7 @@
 import { motion, useMotionValueEvent, useScroll } from "framer-motion"
 import { useLayoutEffect, useRef, useState } from "react"
 
-import { Button } from "@/components/ui/button"
+import { EnterExperienceButton } from "@/components/enter-experience-button"
 
 type HeroOverlayProps = {
   onExploreGraph?: () => void
@@ -70,9 +70,7 @@ export function HeroOverlay({ onExploreGraph: _onExploreGraph }: HeroOverlayProp
             transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
             className="absolute top-6 right-0 z-20 md:top-8"
           >
-            <Button asChild variant="brand" className="h-11 px-6">
-              <a href="#hero-section">Enter Experience</a>
-            </Button>
+            <EnterExperienceButton className="h-11 px-6" />
           </motion.div>
           <motion.div
             initial={{ opacity: 0, y: 18 }}

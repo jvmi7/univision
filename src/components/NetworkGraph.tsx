@@ -14,7 +14,7 @@ import * as THREE from "three"
 
 import {
   NETWORK_CONFIG,
-  NODE_COLORS,
+  PARTICLE_PINK_COLORS,
 } from "@/lib/constants"
 import { generateLogoTargets } from "@/lib/generateLogoTargets"
 import { generateMockData, type NetworkData, type NetworkNode } from "@/lib/generateMockData"
@@ -187,6 +187,7 @@ function NetworkScene({
           pulseAmplitude: 0.015 + (node.auraScore / 100) * 0.032,
           speed: 0.18 + (index % 11) * 0.012,
           phase: index * 0.173,
+          normal: base,
           tangent,
           bitangent,
         }
@@ -203,7 +204,7 @@ function NetworkScene({
   )
 
   const nodeGeometry = useMemo(() => {
-    const geometry = new THREE.IcosahedronGeometry(1, 0)
+    const geometry = new THREE.SphereGeometry(1, 16, 16)
     geometry.computeBoundingSphere()
     return geometry
   }, [])
@@ -242,6 +243,11 @@ function NetworkScene({
       const clusterProgress = THREE.MathUtils.smootherstep(scrollProgressRef.current, 0.06, 0.46)
       const settleProgress = THREE.MathUtils.smootherstep(scrollProgressRef.current, 0.4, 0.62)
       const positionLerpAlpha = 1 - Math.exp(-deltaTime * 12)
+      const idleFloatProgress =
+        selectedNodeIdRef.current === null
+          ? THREE.MathUtils.smootherstep(1 - Math.min(scrollActivityRef.current, 1), 0.3, 0.98)
+          : 0
+      const idleFloatStrength = THREE.MathUtils.lerp(0.18, 0.78, idleFloatProgress)
 
       for (let index = 0; index < data.nodes.length; index += 1) {
         const basePosition = nodePositions[index]
@@ -264,13 +270,23 @@ function NetworkScene({
 
         const logoStability = logoTarget ? THREE.MathUtils.lerp(1, 0.025, logoTarget.influence) : 1
         const clusterStability = THREE.MathUtils.lerp(logoStability, 0.2, clusterProgress)
-        const motionStability = THREE.MathUtils.lerp(clusterStability, 0.03, settleProgress)
-        const offsetA = Math.sin(wave) * motion.amplitude * motionStability
-        const offsetB = Math.cos(wave * 0.7) * motion.amplitude * 0.55 * motionStability
+        const baseMotionStability = THREE.MathUtils.lerp(clusterStability, 0.03, settleProgress)
+        const motionStability = Math.max(
+          baseMotionStability,
+          idleFloatStrength * (1 - settleProgress * 0.55)
+        )
+        const offsetA = Math.sin(wave) * motion.amplitude * 1.45 * motionStability
+        const offsetB = Math.cos(wave * 0.7) * motion.amplitude * 1.18 * motionStability
+        const offsetC =
+          Math.sin(wave * 0.45 + motion.phase * 0.5) *
+          motion.amplitude *
+          0.95 *
+          motionStability
 
         targetPosition
           .addScaledVector(motion.tangent, offsetA)
           .addScaledVector(motion.bitangent, offsetB)
+          .addScaledVector(motion.normal, offsetC)
 
         animatedPosition.lerp(targetPosition, positionLerpAlpha)
 
@@ -310,10 +326,16 @@ function NetworkScene({
       return
     }
 
+    const colorRandom = createDeterministicRandom(91_337)
     const colors = data.nodes.map((node) => {
-      const color = new THREE.Color(NODE_COLORS[node.type])
-      const auraTint = node.auraScore / 100
-      return color.lerp(new THREE.Color("#ffe4fd"), auraTint * 0.45)
+      const color =
+        new THREE.Color(
+          PARTICLE_PINK_COLORS[
+            Math.floor(colorRandom() * PARTICLE_PINK_COLORS.length)
+          ]
+        )
+      const auraTint = THREE.MathUtils.lerp(0.06, 0.18, node.auraScore / 100)
+      return color.lerp(new THREE.Color("#fff0fb"), auraTint)
     })
 
     for (let index = 0; index < data.nodes.length; index += 1) {
@@ -494,13 +516,13 @@ function NetworkScene({
     }
 
     scrollActivityRef.current = Math.max(scrollActivityRef.current - 0.035, 0)
-    controls.autoRotate =
-      selectedNodeIdRef.current === null && scrollActivityRef.current < 0.1
+    controls.autoRotate = false
     controls.update()
 
     const cameraDistance = camera.position.distanceTo(controls.target)
 
-    const shouldUpdateEveryFrame = scrollActivityRef.current > 0.04
+    const shouldUpdateEveryFrame =
+      scrollActivityRef.current > 0.04 || selectedNodeIdRef.current === null
     const nodeUpdateInterval = shouldUpdateEveryFrame ? 1 : 2
 
     if (frameCounterRef.current % nodeUpdateInterval === 0) {
@@ -548,16 +570,14 @@ function NetworkScene({
 
       <OrbitControls
         ref={controlsRef}
-        autoRotate
-        autoRotateSpeed={0.3}
         dampingFactor={0.06}
         enableDamping
-        enablePan
+        enablePan={false}
+        enableRotate={false}
+        enableZoom={false}
         maxDistance={120}
         minDistance={14}
-        rotateSpeed={0.42}
         target={[0, 0, 0]}
-        zoomSpeed={0.8}
       />
 
       <EffectComposer multisampling={0}>

@@ -18,6 +18,13 @@ export const NODE_COLORS: Record<ParticipantType, string> = {
   governor: "#FFC7F7",
 }
 
+export const PARTICLE_PINK_COLORS = [
+  "#E14DFF",
+  "#FF5FD2",
+  "#FF87B7",
+  "#FFB3E6",
+] as const
+
 export const NETWORK_CONFIG = {
   nodeCount: 9000,
   edgeCount: 0,

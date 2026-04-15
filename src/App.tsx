@@ -8,9 +8,10 @@ import {
   RiToolsLine,
   RiWaterFlashLine,
 } from "@remixicon/react"
-import { Link, Route, Routes } from "react-router-dom"
+import { Route, Routes } from "react-router-dom"
 
 import { HeroOverlay } from "@/components/HeroOverlay"
+import { EnterExperienceButton } from "@/components/enter-experience-button"
 import { LeaderboardSection } from "@/components/LeaderboardSection"
 import { NodeTooltip } from "@/components/NodeTooltip"
 import { ScrollReveal, ScrollRevealGroup, ScrollRevealItem } from "@/components/ScrollReveal"
@@ -357,18 +358,7 @@ function Home() {
                 </ScrollRevealItem>
               </ScrollRevealGroup>
               <ScrollReveal delay={0.08}>
-                <div className="flex flex-wrap items-center gap-3">
-                  <Button asChild variant="brand" className="h-11 px-6">
-                    <a href="#leaderboard">Launch App</a>
-                  </Button>
-                  <Button
-                    asChild
-                    variant="outline"
-                    className="h-11 border-white/20 bg-white/5 px-6 text-white hover:bg-white/10"
-                  >
-                    <Link to="/profile">Enter experience</Link>
-                  </Button>
-                </div>
+                <EnterExperienceButton className="h-11 px-6" />
               </ScrollReveal>
             </div>
           </ScrollReveal>
