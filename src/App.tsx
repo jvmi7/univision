@@ -8,6 +8,7 @@ import {
   RiToolsLine,
   RiWaterFlashLine,
 } from "@remixicon/react"
+import { Link, Route, Routes } from "react-router-dom"
 
 import { HeroOverlay } from "@/components/HeroOverlay"
 import { LeaderboardSection } from "@/components/LeaderboardSection"
@@ -23,6 +24,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import type { NetworkNode } from "@/lib/generateMockData"
+import { ProfilePage } from "@/pages/profile-page"
 
 const NetworkGraph = lazy(() => import("@/components/NetworkGraph"))
 
@@ -94,6 +96,15 @@ const unityConceptParagraphs = [
 ]
 
 export function App() {
+  return (
+    <Routes>
+      <Route path="/" element={<Home />} />
+      <Route path="/profile" element={<ProfilePage />} />
+    </Routes>
+  )
+}
+
+function Home() {
   const [selectedNode, setSelectedNode] = useState<NetworkNode | null>(null)
   const [tooltipPosition, setTooltipPosition] = useState<{
     x: number
@@ -346,13 +357,18 @@ export function App() {
                 </ScrollRevealItem>
               </ScrollRevealGroup>
               <ScrollReveal delay={0.08}>
-                <Button
-                  asChild
-                  variant="brand"
-                  className="h-11 px-6"
-                >
-                  <a href="#leaderboard">Launch App</a>
-                </Button>
+                <div className="flex flex-wrap items-center gap-3">
+                  <Button asChild variant="brand" className="h-11 px-6">
+                    <a href="#leaderboard">Launch App</a>
+                  </Button>
+                  <Button
+                    asChild
+                    variant="outline"
+                    className="h-11 border-white/20 bg-white/5 px-6 text-white hover:bg-white/10"
+                  >
+                    <Link to="/profile">Enter experience</Link>
+                  </Button>
+                </div>
               </ScrollReveal>
             </div>
           </ScrollReveal>
