@@ -1,75 +1,183 @@
-import { MoonStar, SunMedium } from "lucide-react"
+import { lazy, Suspense, useEffect, useState } from "react"
 
-import { SplashSphere } from "@/components/splash-sphere"
-import { useTheme } from "@/components/theme-provider"
-import { Button } from "@/components/ui/button"
+import { HeroOverlay } from "@/components/HeroOverlay"
+import { NodeTooltip } from "@/components/NodeTooltip"
+import type { NetworkNode } from "@/lib/generateMockData"
+
+const NetworkGraph = lazy(() => import("@/components/NetworkGraph"))
 
 export function App() {
-  const { theme, setTheme } = useTheme()
-  const isDarkTheme = theme === "dark"
+  const [selectedNode, setSelectedNode] = useState<NetworkNode | null>(null)
+  const [tooltipPosition, setTooltipPosition] = useState<{
+    x: number
+    y: number
+  } | null>(null)
+  const [exploreSignal, setExploreSignal] = useState(0)
+  const [scrollProgress, setScrollProgress] = useState(0)
+
+  useEffect(() => {
+    let rafId = 0
+
+    const updateScrollProgress = () => {
+      const scrollHeight =
+        document.documentElement.scrollHeight - window.innerHeight
+      const nextProgress =
+        scrollHeight > 0 ? window.scrollY / scrollHeight : 0
+
+      setScrollProgress(Math.min(Math.max(nextProgress, 0), 1))
+    }
+
+    const handleScroll = () => {
+      cancelAnimationFrame(rafId)
+      rafId = requestAnimationFrame(updateScrollProgress)
+    }
+
+    updateScrollProgress()
+    window.addEventListener("scroll", handleScroll, { passive: true })
+    window.addEventListener("resize", handleScroll)
+
+    return () => {
+      cancelAnimationFrame(rafId)
+      window.removeEventListener("scroll", handleScroll)
+      window.removeEventListener("resize", handleScroll)
+    }
+  }, [])
 
   return (
-    <main className="relative isolate min-h-svh overflow-hidden bg-background text-foreground">
-      <div className="absolute inset-0 -z-20 bg-[radial-gradient(circle_at_top_left,rgba(139,92,246,0.24),transparent_34%),radial-gradient(circle_at_bottom_right,rgba(59,130,246,0.16),transparent_28%)]" />
-      <div className="absolute inset-x-0 top-0 -z-10 h-px bg-gradient-to-r from-transparent via-border to-transparent" />
-
-      <section className="mx-auto grid min-h-svh max-w-7xl gap-12 px-6 py-10 lg:grid-cols-[1.05fr_0.95fr] lg:items-center lg:px-10">
-        <div className="flex max-w-2xl min-w-0 flex-col gap-6">
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="inline-flex w-fit items-center rounded-full border border-border/70 bg-background/80 px-3 py-1 text-xs font-medium uppercase tracking-[0.22em] text-muted-foreground backdrop-blur">
-              Univision splash
-            </div>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => setTheme(isDarkTheme ? "light" : "dark")}
-            >
-              {isDarkTheme ? <SunMedium /> : <MoonStar />}
-              Toggle theme
-            </Button>
+    <main className="relative min-h-svh bg-[#0D0D0E] text-white">
+      <div className="fixed inset-0">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_15%_20%,rgba(252,114,255,0.18),transparent_0,transparent_34%),radial-gradient(circle_at_82%_24%,rgba(255,155,241,0.16),transparent_0,transparent_30%),radial-gradient(circle_at_50%_85%,rgba(252,114,255,0.12),transparent_0,transparent_28%)]" />
+        <Suspense
+          fallback={
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(252,114,255,0.18),transparent_35%),radial-gradient(circle_at_80%_30%,rgba(255,170,246,0.12),transparent_30%)]" />
+          }
+        >
+          <div className="absolute inset-0">
+            <NetworkGraph
+              exploreSignal={exploreSignal}
+              onSelectionChange={setSelectedNode}
+              onTooltipPositionChange={setTooltipPosition}
+              scrollProgress={scrollProgress}
+            />
           </div>
+        </Suspense>
+        <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(13,13,14,0.72),rgba(13,13,14,0.28)_24%,rgba(13,13,14,0.16)_55%,rgba(13,13,14,0.72))]" />
+      </div>
 
-          <div className="space-y-4">
-            <h1 className="max-w-xl text-5xl font-semibold tracking-tight text-balance sm:text-6xl">
-              A cinematic splash screen with a living 3D sphere.
-            </h1>
-            <p className="max-w-xl text-base leading-7 text-muted-foreground sm:text-lg">
-              This hero section combines Tailwind CSS, shadcn/ui, React
-              Three Fiber, and Three.js to render a softly animated spherical
-              orb inside a responsive canvas.
-            </p>
-          </div>
+      <div className="relative z-10">
+        <HeroOverlay
+          onExploreGraph={() => setExploreSignal((current) => current + 1)}
+        />
 
-          <div className="flex flex-wrap items-center gap-3">
-            <Button size="lg">Enter experience</Button>
-            <Button size="lg" variant="outline">
-              View concept
-            </Button>
-          </div>
-
-          <div className="flex flex-wrap gap-6 text-sm text-muted-foreground">
-            <p>React + TypeScript + Vite</p>
-            <p>Tailwind CSS + shadcn/ui</p>
-            <p>Three.js canvas scene</p>
-          </div>
-        </div>
-
-        <div className="relative">
-          <div className="absolute inset-8 -z-10 rounded-full bg-violet-500/20 blur-3xl" />
-          <div className="relative aspect-square overflow-hidden rounded-[2rem] border border-white/10 bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.12),transparent_34%),linear-gradient(135deg,#020617_0%,#1e1b4b_45%,#020617_100%)] shadow-2xl shadow-violet-950/30">
-            <SplashSphere />
-            <div className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-slate-950 via-slate-950/70 to-transparent p-6">
-              <p className="text-sm font-medium text-white/90">
-                Rendered with React canvas and Three.js.
+        <section
+          id="how-it-works"
+          className="mx-auto max-w-7xl px-6 py-16 md:px-8 md:py-24"
+        >
+          <div className="rounded-[2rem] border border-white/10 bg-black/34 p-8 shadow-[0_24px_80px_rgba(0,0,0,0.32)] backdrop-blur-xl md:p-10">
+            <div className="max-w-3xl">
+              <p className="text-xs uppercase tracking-[0.24em] text-white/50">
+                How It Works
               </p>
-              <p className="mt-1 text-sm text-white/60">
-                Press <kbd className="rounded bg-white/10 px-1.5 py-0.5">d</kbd>{" "}
-                to toggle the app theme.
+              <h2 className="mt-4 text-3xl font-semibold tracking-tight text-white md:text-5xl">
+                A shared trust layer for the Uniswap ecosystem.
+              </h2>
+              <p className="mt-5 max-w-2xl text-base leading-8 text-white/68 md:text-lg">
+                Univision turns onchain behavior into a credibility graph. Aura
+                reflects long-term alignment, sparks represent attestations, and
+                the network surface shows how conviction compounds across the
+                protocol.
               </p>
             </div>
+
+            <div className="mt-10 grid gap-4 md:grid-cols-3">
+              {[
+                {
+                  title: "Observe",
+                  body: "Track UNI holders, LPs, traders, governors, researchers, and developers inside one living graph.",
+                },
+                {
+                  title: "Score",
+                  body: "Convert participation, reputation, and peer acknowledgement into readable aura signals.",
+                },
+                {
+                  title: "Coordinate",
+                  body: "Help contributors discover aligned peers, high-context clusters, and credible collaboration paths.",
+                },
+              ].map((item) => (
+                <div
+                  key={item.title}
+                  className="rounded-[1.5rem] border border-white/8 bg-white/4 p-6"
+                >
+                  <p className="text-sm font-medium text-[#FC72FF]">{item.title}</p>
+                  <p className="mt-3 text-sm leading-7 text-white/62">{item.body}</p>
+                </div>
+              ))}
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
+
+        <section
+          id="explore"
+          className="mx-auto max-w-7xl px-6 py-16 md:px-8 md:py-24"
+        >
+          <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
+            <div className="rounded-[2rem] border border-white/10 bg-black/34 p-8 backdrop-blur-xl md:p-10">
+              <p className="text-xs uppercase tracking-[0.24em] text-white/50">
+                Explore the Graph
+              </p>
+              <h2 className="mt-4 text-3xl font-semibold tracking-tight md:text-5xl">
+                Move from noisy addresses to legible network structure.
+              </h2>
+              <p className="mt-5 text-base leading-8 text-white/68 md:text-lg">
+                The graph remains alive in the background while the page scrolls.
+                This lets the product story and the network visualization coexist:
+                interface in the foreground, protocol topology beneath it.
+              </p>
+            </div>
+
+            <div className="grid gap-6">
+              {[
+                "Scrollable storytelling layout over a persistent WebGL background.",
+                "Glass panels and gradients keep copy readable without hiding the scene.",
+                "Interactive node tooltip stays available when you focus on a participant.",
+              ].map((line) => (
+                <div
+                  key={line}
+                  className="rounded-[1.5rem] border border-white/8 bg-white/4 p-6 backdrop-blur-xl"
+                >
+                  <p className="text-sm leading-7 text-white/68">{line}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section
+          id="docs"
+          className="mx-auto max-w-7xl px-6 py-16 md:px-8 md:py-24"
+        >
+          <div className="rounded-[2rem] border border-white/10 bg-[linear-gradient(180deg,rgba(252,114,255,0.12),rgba(13,13,14,0.52))] p-8 backdrop-blur-xl md:p-10">
+            <div className="grid gap-8 lg:grid-cols-[0.95fr_1.05fr] lg:items-end">
+              <div>
+                <p className="text-xs uppercase tracking-[0.24em] text-white/50">
+                  Docs & Roadmap
+                </p>
+                <h2 className="mt-4 text-3xl font-semibold tracking-tight md:text-5xl">
+                  Build the interface layer on top of the credibility graph.
+                </h2>
+              </div>
+              <p className="text-base leading-8 text-white/68 md:text-lg">
+                This setup is now ready for longer-form content: docs, product
+                explanation, ecosystem examples, and future protocol modules,
+                all while the scene stays pinned behind the page as ambient context.
+              </p>
+            </div>
+          </div>
+        </section>
+
+        <div className="h-24" />
+        <NodeTooltip node={selectedNode} position={tooltipPosition} />
+      </div>
     </main>
   )
 }
