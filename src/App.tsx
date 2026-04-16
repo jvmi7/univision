@@ -24,9 +24,9 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import type { NetworkNode } from "@/lib/generateMockData"
-import { ProfilePage } from "@/pages/profile-page"
 
 const NetworkGraph = lazy(() => import("@/components/NetworkGraph"))
+const ProfileExperience = lazy(() => import("@/pages/profile-experience"))
 
 const howItWorksItems = [
   {
@@ -99,7 +99,16 @@ export function App() {
   return (
     <Routes>
       <Route path="/" element={<Home />} />
-      <Route path="/profile" element={<ProfilePage />} />
+      <Route
+        path="/profile"
+        element={
+          <Suspense
+            fallback={<main className="fixed inset-0 bg-black" aria-busy aria-label="Loading" />}
+          >
+            <ProfileExperience />
+          </Suspense>
+        }
+      />
     </Routes>
   )
 }

@@ -129,9 +129,53 @@ const MEADOW_INTRO_DURATION_SEC = 1.95
 /** Slightly “zoomed out” at t=0; eases to 1 with ortho bleed math unchanged */
 const MEADOW_INTRO_SCALE_START = 0.904
 
+/** Foreground hero pines: staggered scale + rise with scene intro; gentle sway after settle */
+const FOREGROUND_PINE_INTRO_SCALE_START = 0.87
+const FOREGROUND_PINE_INTRO_Y_DROP = 0.42
+const FOREGROUND_PINE_SWAY_AMP_Z = 0.026
+const FOREGROUND_PINE_SWAY_AMP_Y = 0.013
+const FOREGROUND_PINE_SWAY_FREQ = 1.04
+
 function easeOutCubic(t: number): number {
   const x = Math.min(1, Math.max(0, t))
   return 1 - (1 - x) ** 3
+}
+
+function attachForegroundPineMotion(tree: THREE.Group, introStagger: number, swayPhase: number) {
+  tree.userData.baseX = tree.position.x
+  tree.userData.baseY = tree.position.y
+  tree.userData.baseZ = tree.position.z
+  tree.userData.pineIntroStagger = introStagger
+  tree.userData.pineSwayPhase = swayPhase
+}
+
+function updateForegroundPinesAnimation(layer: THREE.Group, introP: number, elapsed: number) {
+  layer.children.forEach((obj) => {
+    if (!(obj instanceof THREE.Group)) return
+    const g = obj
+    const bx = g.userData.baseX as number | undefined
+    const by = g.userData.baseY as number | undefined
+    const bz = g.userData.baseZ as number | undefined
+    if (bx === undefined || by === undefined || bz === undefined) return
+
+    const stagger = (g.userData.pineIntroStagger as number) ?? 0
+    const phase = (g.userData.pineSwayPhase as number) ?? 0
+    const denom = Math.max(1e-4, 1 - stagger)
+    const localP = Math.max(0, Math.min(1, (introP - stagger) / denom))
+    const pineEase = easeOutCubic(localP)
+    const scaleMul = THREE.MathUtils.lerp(FOREGROUND_PINE_INTRO_SCALE_START, 1, pineEase)
+    const yIntro = -FOREGROUND_PINE_INTRO_Y_DROP * (1 - pineEase)
+
+    const idle = pineEase > 0.997
+    const swayZ = idle ? Math.sin(elapsed * FOREGROUND_PINE_SWAY_FREQ + phase) * FOREGROUND_PINE_SWAY_AMP_Z : 0
+    const swayY = idle
+      ? Math.sin(elapsed * (FOREGROUND_PINE_SWAY_FREQ * 0.79) + phase * 1.35) * FOREGROUND_PINE_SWAY_AMP_Y
+      : 0
+
+    g.position.set(bx, by + yIntro + swayY, bz)
+    g.scale.setScalar(scaleMul)
+    g.rotation.z = swayZ
+  })
 }
 
 function updateOrthographicCamera(
@@ -386,15 +430,64 @@ function createCloudLayer(
 // Stars (dark) — instanced quads with per-instance twinkle phase
 // =============================================================================
 
+/** NDC radius (~fraction of half-viewport) within which pointer proximity affects a star */
+const STAR_HOVER_RADIUS_NDC = 0.095
+/** Exponential approach rate (higher = snappier toward hover target) */
+const STAR_HOVER_SMOOTH_RATE = 3.1
+/** Plain circular stars: subtle grow + brighten on hover */
+const STAR_HOVER_CIRCLE_SCALE_MAX = 1.34
+const STAR_HOVER_CIRCLE_BRIGHT_STRENGTH = 0.95
+/** Twinkle sparkles: strong grow + brighten on hover */
+const STAR_HOVER_TWINKLE_SCALE_MAX = 5.1
+const STAR_HOVER_TWINKLE_BRIGHT_STRENGTH = 2.7
+
+const _starHoverProj = new THREE.Vector3()
+const _starHoverInst = new THREE.Matrix4()
+const _starHoverWorld = new THREE.Matrix4()
+
+/**
+ * Proximity target each frame, ease `aHoverBoost` (scale + brightness in shaders; tuned per material).
+ */
+function updateStarFieldHoverProximity(
+  mesh: THREE.InstancedMesh,
+  camera: THREE.OrthographicCamera,
+  pointerNdc: THREE.Vector2,
+  radiusNdc: number,
+  hoverAttr: THREE.InstancedBufferAttribute,
+  dt: number,
+) {
+  const count = mesh.count
+  const data = hoverAttr.array as Float32Array
+  const invR2 = 1 / (radiusNdc * radiusNdc)
+  const k = 1 - Math.exp(-STAR_HOVER_SMOOTH_RATE * Math.min(Math.max(dt, 0), 0.1))
+  mesh.updateMatrixWorld(true)
+  for (let i = 0; i < count; i++) {
+    mesh.getMatrixAt(i, _starHoverInst)
+    _starHoverWorld.multiplyMatrices(mesh.matrixWorld, _starHoverInst)
+    _starHoverProj.setFromMatrixPosition(_starHoverWorld)
+    _starHoverProj.project(camera)
+    const dx = _starHoverProj.x - pointerNdc.x
+    const dy = _starHoverProj.y - pointerNdc.y
+    const d2 = dx * dx + dy * dy
+    const t = Math.max(0, 1 - d2 * invR2)
+    const target = t * t * (3 - 2 * t)
+    data[i] += (target - data[i]) * k
+  }
+  hoverAttr.needsUpdate = true
+}
+
 function createStarField(count: number, spreadW: number, spreadH: number, z: number): THREE.InstancedMesh {
   const geo = new THREE.PlaneGeometry(0.09, 0.09)
   const phases = new Float32Array(count)
   const scales = new Float32Array(count)
+  const hoverBoost = new Float32Array(count)
   for (let i = 0; i < count; i++) {
     phases[i] = Math.random() * Math.PI * 2
     scales[i] = 0.72 + Math.random() * 1.45
+    hoverBoost[i] = 0
   }
   geo.setAttribute("aPhase", new THREE.InstancedBufferAttribute(phases, 1))
+  geo.setAttribute("aHoverBoost", new THREE.InstancedBufferAttribute(hoverBoost, 1))
 
   const mat = new THREE.ShaderMaterial({
     transparent: true,
@@ -402,21 +495,30 @@ function createStarField(count: number, spreadW: number, spreadH: number, z: num
     uniforms: {
       uTime: { value: 0 },
       uColor: { value: new THREE.Color("#dde8ff") },
+      uHoverBoostStrength: { value: STAR_HOVER_CIRCLE_BRIGHT_STRENGTH },
+      uHoverScaleMax: { value: STAR_HOVER_CIRCLE_SCALE_MAX },
     },
     vertexShader: `
       attribute float aPhase;
+      attribute float aHoverBoost;
+      uniform float uHoverScaleMax;
       varying float vPhase;
+      varying float vHoverBoost;
       varying vec2 vUv;
       void main() {
         vPhase = aPhase;
+        vHoverBoost = aHoverBoost;
         vUv = uv;
-        gl_Position = projectionMatrix * modelViewMatrix * instanceMatrix * vec4(position, 1.0);
+        float s = mix(1.0, uHoverScaleMax, vHoverBoost);
+        gl_Position = projectionMatrix * modelViewMatrix * instanceMatrix * vec4(position * s, 1.0);
       }
     `,
     fragmentShader: `
       uniform float uTime;
       uniform vec3 uColor;
+      uniform float uHoverBoostStrength;
       varying float vPhase;
+      varying float vHoverBoost;
       varying vec2 vUv;
       void main() {
         vec2 c = vUv - 0.5;
@@ -424,7 +526,8 @@ function createStarField(count: number, spreadW: number, spreadH: number, z: num
         float tw = 0.7 + 0.3 * sin(uTime * 1.4 + vPhase);
         float d = length(c) * 2.05;
         float a = smoothstep(1.0, 0.0, d) * tw * 0.72;
-        gl_FragColor = vec4(uColor * 1.04, min(a, 0.78));
+        float boost = 1.0 + vHoverBoost * uHoverBoostStrength;
+        gl_FragColor = vec4(uColor * (1.04 * boost), min(a * boost, 0.94));
       }
     `,
   })
@@ -446,11 +549,14 @@ function createSkyStarTwinkleField(count: number, spreadW: number, spreadH: numb
   const geo = new THREE.PlaneGeometry(0.12, 0.12)
   const phases = new Float32Array(count)
   const scales = new Float32Array(count)
+  const hoverBoost = new Float32Array(count)
   for (let i = 0; i < count; i++) {
     phases[i] = Math.random() * Math.PI * 2
     scales[i] = 0.82 + Math.random() * 1.15
+    hoverBoost[i] = 0
   }
   geo.setAttribute("aPhase", new THREE.InstancedBufferAttribute(phases, 1))
+  geo.setAttribute("aHoverBoost", new THREE.InstancedBufferAttribute(hoverBoost, 1))
 
   const mat = new THREE.ShaderMaterial({
     transparent: true,
@@ -458,21 +564,30 @@ function createSkyStarTwinkleField(count: number, spreadW: number, spreadH: numb
     uniforms: {
       uTime: { value: 0 },
       uColor: { value: new THREE.Color("#f0f4ff") },
+      uHoverBoostStrength: { value: STAR_HOVER_TWINKLE_BRIGHT_STRENGTH },
+      uHoverScaleMax: { value: STAR_HOVER_TWINKLE_SCALE_MAX },
     },
     vertexShader: `
       attribute float aPhase;
+      attribute float aHoverBoost;
+      uniform float uHoverScaleMax;
       varying float vPhase;
+      varying float vHoverBoost;
       varying vec2 vUv;
       void main() {
         vPhase = aPhase;
+        vHoverBoost = aHoverBoost;
         vUv = uv;
-        gl_Position = projectionMatrix * modelViewMatrix * instanceMatrix * vec4(position, 1.0);
+        float sc = mix(1.0, uHoverScaleMax, vHoverBoost);
+        gl_Position = projectionMatrix * modelViewMatrix * instanceMatrix * vec4(position * sc, 1.0);
       }
     `,
     fragmentShader: `
       uniform float uTime;
       uniform vec3 uColor;
+      uniform float uHoverBoostStrength;
       varying float vPhase;
+      varying float vHoverBoost;
       varying vec2 vUv;
       void main() {
         vec2 p = (vUv - 0.5) * 2.0;
@@ -487,7 +602,8 @@ function createSkyStarTwinkleField(count: number, spreadW: number, spreadH: numb
         float shape = core * 0.5 + rays * limb * 1.05;
         float tw = 0.62 + 0.38 * sin(uTime * 1.85 + vPhase);
         float a = min(shape * tw * 0.48, 0.58);
-        gl_FragColor = vec4(uColor * 1.05, a);
+        float boost = 1.0 + vHoverBoost * uHoverBoostStrength;
+        gl_FragColor = vec4(uColor * (1.05 * boost), min(a * boost, 0.9));
       }
     `,
   })
@@ -620,7 +736,7 @@ function createTreeLineMesh(
 
 type PineLayer = "trunk" | "deep" | "main" | "light" | "accent" | "tip"
 
-function createPineFoliageMaterial(mode: MeadowThemeMode): THREE.ShaderMaterial {
+function createPineFoliageMaterial(mode: MeadowThemeMode, noiseSeed: number): THREE.ShaderMaterial {
   const p = THEME[mode]
   return new THREE.ShaderMaterial({
     uniforms: {
@@ -628,12 +744,17 @@ function createPineFoliageMaterial(mode: MeadowThemeMode): THREE.ShaderMaterial 
       uColorBottom: { value: p.pineFoliageDeep.clone() },
       uYMin: { value: 0 },
       uYMax: { value: 1 },
+      uNoiseSeed: { value: noiseSeed },
     },
     vertexShader: `
       attribute float aTreeY;
       varying float vTreeY;
+      varying vec3 vLocalPos;
+      varying vec3 vN;
       void main() {
         vTreeY = aTreeY;
+        vLocalPos = position;
+        vN = normal;
         gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
       }
     `,
@@ -642,11 +763,121 @@ function createPineFoliageMaterial(mode: MeadowThemeMode): THREE.ShaderMaterial 
       uniform vec3 uColorBottom;
       uniform float uYMin;
       uniform float uYMax;
+      uniform float uNoiseSeed;
       varying float vTreeY;
+      varying vec3 vLocalPos;
+      varying vec3 vN;
+
+      float hash3(vec3 p) {
+        p = fract(p * 0.1031);
+        p += dot(p, p.yzx + 33.33);
+        return fract((p.x + p.y) * p.z);
+      }
+      float noise3(vec3 x) {
+        vec3 i = floor(x);
+        vec3 f = fract(x);
+        f = f * f * (3.0 - 2.0 * f);
+        return mix(
+          mix(mix(hash3(i), hash3(i + vec3(1,0,0)), f.x),
+              mix(hash3(i + vec3(0,1,0)), hash3(i + vec3(1,1,0)), f.x), f.y),
+          mix(mix(hash3(i + vec3(0,0,1)), hash3(i + vec3(1,0,1)), f.x),
+              mix(hash3(i + vec3(0,1,1)), hash3(i + vec3(1,1,1)), f.x), f.y),
+          f.z);
+      }
+      float fbm(vec3 p) {
+        float v = 0.0;
+        float a = 0.52;
+        vec3 q = p;
+        for (int i = 0; i < 4; i++) {
+          v += a * noise3(q);
+          q *= 2.07;
+          a *= 0.5;
+        }
+        return v;
+      }
+
       void main() {
         float span = max(uYMax - uYMin, 1e-4);
         float t = clamp((vTreeY - uYMin) / span, 0.0, 1.0);
-        vec3 col = mix(uColorBottom, uColorTop, t);
+        vec3 base = mix(uColorBottom, uColorTop, t);
+
+        vec3 offs = vec3(uNoiseSeed * 0.31, uNoiseSeed * 0.27, uNoiseSeed * 0.33);
+        vec3 p = vLocalPos * vec3(3.8, 2.9, 3.8) + offs;
+        float macro = fbm(p);
+        float meso = fbm(p * 2.4 + vec3(7.1, 2.2, 5.4));
+        float grain = noise3(p * 9.2 + offs);
+
+        float shade = mix(0.88, 1.08, macro) * mix(0.94, 1.06, meso);
+        vec3 moss = mix(uColorBottom * 0.82, base, 0.35 + macro * 0.45);
+        vec3 col = mix(moss, base, 0.55 + t * 0.35);
+        col = mix(col, uColorTop * 1.06, t * t * 0.22);
+        col *= shade;
+        col *= mix(0.94, 1.06, grain * 0.45 + 0.55);
+
+        vec3 n = normalize(vN);
+        float edge = 1.0 - pow(max(n.y, 0.0), 0.45);
+        col *= mix(0.95, 1.07, edge * 0.4);
+
+        gl_FragColor = vec4(col, 1.0);
+      }
+    `,
+    fog: false,
+  })
+}
+
+function createPineTrunkMaterial(mode: MeadowThemeMode, noiseSeed: number): THREE.ShaderMaterial {
+  return new THREE.ShaderMaterial({
+    uniforms: {
+      uColor: { value: THEME[mode].pineTrunk.clone() },
+      uNoiseSeed: { value: noiseSeed },
+    },
+    vertexShader: `
+      varying vec3 vPos;
+      varying vec3 vNormal;
+      varying vec2 vUv;
+      void main() {
+        vPos = position;
+        vNormal = normalize(normalMatrix * normal);
+        vUv = uv;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }
+    `,
+    fragmentShader: `
+      uniform vec3 uColor;
+      uniform float uNoiseSeed;
+      varying vec3 vPos;
+      varying vec3 vNormal;
+      varying vec2 vUv;
+
+      float hash3(vec3 p) {
+        p = fract(p * 0.1031);
+        p += dot(p, p.yzx + 33.33);
+        return fract((p.x + p.y) * p.z);
+      }
+      float noise3(vec3 x) {
+        vec3 i = floor(x);
+        vec3 f = fract(x);
+        f = f * f * (3.0 - 2.0 * f);
+        return mix(
+          mix(mix(hash3(i), hash3(i + vec3(1,0,0)), f.x),
+              mix(hash3(i + vec3(0,1,0)), hash3(i + vec3(1,1,0)), f.x), f.y),
+          mix(mix(hash3(i + vec3(0,0,1)), hash3(i + vec3(1,0,1)), f.x),
+              mix(hash3(i + vec3(0,1,1)), hash3(i + vec3(1,1,1)), f.x), f.y),
+          f.z);
+      }
+
+      void main() {
+        vec3 p = vPos * vec3(14.0, 9.0, 14.0) + vec3(uNoiseSeed * 0.2);
+        float gn = noise3(p) * 0.5 + 0.5;
+        float vy = vPos.y * 18.0 + uNoiseSeed + noise3(p * 0.4) * 2.5;
+        float vertical = sin(vy) * 0.5 + 0.5;
+        float spiral = sin(atan(vPos.x, vPos.z) * 5.0 + vPos.y * 22.0 + uNoiseSeed) * 0.5 + 0.5;
+        float bands = mix(0.88, 1.1, vertical) * mix(0.92, 1.08, spiral * 0.35 + 0.65);
+        vec3 col = uColor * bands * (0.9 + gn * 0.18);
+
+        float side = abs(vNormal.x) + abs(vNormal.z);
+        col *= 0.9 + 0.1 * side;
+
         gl_FragColor = vec4(col, 1.0);
       }
     `,
@@ -723,14 +954,12 @@ function createDetailedPineTree(mode: MeadowThemeMode, scale: number, rotY: numb
   const coneHeightSeg = hero ? 14 : 9
   const trunkRadial = hero ? 28 : 18
 
-  const foliageMat = createPineFoliageMaterial(mode)
+  const pineTexSeed = Math.random() * 4000 + 100
+  const foliageMat = createPineFoliageMaterial(mode, pineTexSeed)
+  const trunkMat = createPineTrunkMaterial(mode, pineTexSeed * 1.73)
 
   const trunkH = 1.05 * scale
   const trunkGeom = new THREE.CylinderGeometry(0.11 * scale, 0.19 * scale, trunkH, trunkRadial, 7, false)
-  const trunkMat = new THREE.MeshBasicMaterial({
-    color: THEME[mode].pineTrunk.clone(),
-    fog: false,
-  })
   const trunk = new THREE.Mesh(trunkGeom, trunkMat)
   trunk.userData.pineLayer = "trunk" satisfies PineLayer
   trunk.position.y = trunkH * 0.5
@@ -797,7 +1026,11 @@ function applyForegroundPineTheme(group: THREE.Group, mode: MeadowThemeMode) {
     if (!layer) return
     const mat = obj.material
     if (layer === "trunk") {
-      ;(mat as THREE.MeshBasicMaterial).color.copy(p.pineTrunk)
+      if (mat instanceof THREE.ShaderMaterial && mat.uniforms.uColor) {
+        mat.uniforms.uColor.value.copy(p.pineTrunk)
+      } else {
+        ;(mat as THREE.MeshBasicMaterial).color.copy(p.pineTrunk)
+      }
     } else if (mat instanceof THREE.ShaderMaterial && mat.uniforms.uColorTop) {
       mat.uniforms.uColorTop.value.copy(p.pineFoliageBright)
       mat.uniforms.uColorBottom.value.copy(p.pineFoliageDeep)
@@ -1387,6 +1620,11 @@ export function MeadowScene({ theme: themeProp = "auto" }: MeadowSceneProps) {
     pineFlankR.position.set(w * 0.362, -h * 0.465, -8.5)
     layerForegroundPines.add(pineFlankR)
 
+    attachForegroundPineMotion(pineHeroL, 0, 0.82)
+    attachForegroundPineMotion(pineFlankL, 0.09, 2.08)
+    attachForegroundPineMotion(pineHeroR, 0.045, 1.38)
+    attachForegroundPineMotion(pineFlankR, 0.12, 2.65)
+
     worldGroup.add(layerSky, layerMountains, cloudGroup, stars, layerTrees, layerMeadow, layerForegroundPines)
 
     let introK = MEADOW_INTRO_SCALE_START
@@ -1444,6 +1682,13 @@ export function MeadowScene({ theme: themeProp = "auto" }: MeadowSceneProps) {
     applyThemeRef.current = applyTheme
 
     const pointer = { x: 0, y: 0, tx: 0, ty: 0 }
+    /** Smoothed pointer in NDC matching `Vector3.project(camera)` (y up). */
+    const pointerNdc = new THREE.Vector2()
+    const starsHoverAttr = stars.geometry.getAttribute("aHoverBoost") as THREE.InstancedBufferAttribute
+    const skyTwinkleHoverAttr = skyStarTwinkles.geometry.getAttribute(
+      "aHoverBoost",
+    ) as THREE.InstancedBufferAttribute
+
     const onMove = (e: PointerEvent) => {
       pointer.tx = (e.clientX / width - 0.5) * 2
       pointer.ty = (e.clientY / height - 0.5) * 2
@@ -1452,9 +1697,14 @@ export function MeadowScene({ theme: themeProp = "auto" }: MeadowSceneProps) {
 
     const clock = new THREE.Clock()
     let raf = 0
+    /** For frame-rate–independent star hover easing (avoid double `getDelta` with `getElapsedTime`) */
+    let starHoverPrevElapsed = 0
 
     const animate = () => {
       const t = clock.getElapsedTime()
+      const starHoverDt =
+        starHoverPrevElapsed > 0 ? Math.min(0.1, t - starHoverPrevElapsed) : 1 / 60
+      starHoverPrevElapsed = t
       const introP = Math.min(1, t / MEADOW_INTRO_DURATION_SEC)
       const introEase = easeOutCubic(introP)
       introK = THREE.MathUtils.lerp(MEADOW_INTRO_SCALE_START, 1, introEase)
@@ -1467,6 +1717,8 @@ export function MeadowScene({ theme: themeProp = "auto" }: MeadowSceneProps) {
 
       pointer.x += (pointer.tx - pointer.x) * 0.04
       pointer.y += (pointer.ty - pointer.y) * 0.04
+      /* Raw NDC for star hover — matches screen cursor; parallax already baked into star `project()` */
+      pointerNdc.set(pointer.tx, -pointer.ty)
 
       const introLift = 1 - introEase
       parallaxLayers.forEach((group) => {
@@ -1477,6 +1729,8 @@ export function MeadowScene({ theme: themeProp = "auto" }: MeadowSceneProps) {
         group.position.x = pointer.x * k * 0.45
         group.position.y = baseIntroY + pointer.y * k * 0.28
       })
+
+      updateForegroundPinesAnimation(layerForegroundPines, introP, t)
 
       if (cloudGroup.visible) {
         cloudGroup.children.forEach((ch) => {
@@ -1492,10 +1746,26 @@ export function MeadowScene({ theme: themeProp = "auto" }: MeadowSceneProps) {
       if (stars.visible) {
         const sm = stars.material as THREE.ShaderMaterial
         sm.uniforms.uTime.value = t
+        updateStarFieldHoverProximity(
+          stars,
+          camera,
+          pointerNdc,
+          STAR_HOVER_RADIUS_NDC,
+          starsHoverAttr,
+          starHoverDt,
+        )
       }
       if (skyStarTwinkles.visible) {
         const tm = skyStarTwinkles.material as THREE.ShaderMaterial
         tm.uniforms.uTime.value = t
+        updateStarFieldHoverProximity(
+          skyStarTwinkles,
+          camera,
+          pointerNdc,
+          STAR_HOVER_RADIUS_NDC * 1.1,
+          skyTwinkleHoverAttr,
+          starHoverDt,
+        )
       }
 
       flowers.layout.forEach((L, i) => {

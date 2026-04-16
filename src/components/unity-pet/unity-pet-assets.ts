@@ -50,3 +50,14 @@ export function getUnityPetPortraitUrl(
   if (input.kind === "egg") return unityEgg
   return themePortraits[input.theme][input.stage]
 }
+
+/** Uniform random theme and stage (e.g. post-mint reveal). */
+export function rollRandomHatchedCompanion(): {
+  theme: UnityPetTheme
+  stage: UnityPetStage
+} {
+  const theme =
+    UNITY_PET_THEMES[Math.floor(Math.random() * UNITY_PET_THEMES.length)]!
+  const stage = (Math.floor(Math.random() * 3) + 1) as UnityPetStage
+  return { theme, stage }
+}

@@ -26,6 +26,11 @@ const springFillTransition = {
   mass: 1.05,
 }
 
+const springFillOpacityTransition = {
+  duration: 0.22,
+  ease: [0.33, 0, 0.2, 1] as const,
+}
+
 /** Soft halo on the fill (track/fill stay `overflow-visible` so shadow is not clipped). */
 const fillGlowClass =
   "shadow-[0_0_8px_rgba(255,255,255,0.35),0_0_2px_rgba(255,255,255,0.55)] dark:shadow-[0_0_10px_rgba(255,255,255,0.28),0_0_3px_rgba(255,255,255,0.45)]"
@@ -46,16 +51,19 @@ export function PetStatBar({
   const percent = Math.min(100, Math.max(0, (clamped / safeMax) * 100))
   const sculpted = Boolean(trackClassName)
   const useSpringFill = fillLayout === "spring" && !reduceMotion
-  const fillMinClass = clamped > 0 ? "min-w-[4px]" : "min-w-0"
+  // Don't use min-width while the spring is widening: with clamped > 0 but width still ~0%,
+  // min-w-[4px] draws a vertical sliver on the left. CSS path can keep a tiny min for readability.
+  const fillMinClass =
+    clamped > 0 && !useSpringFill ? "min-w-[4px]" : "min-w-0"
 
   return (
     <div
-      className={cn("min-w-0", size === "large" ? "space-y-1.5" : "space-y-1", className)}
+      className={cn("min-w-0", size === "large" ? "space-y-2" : "space-y-1", className)}
     >
       <div
         className={cn(
           "flex items-baseline justify-between gap-2",
-          size === "large" ? "text-sm" : "text-xs",
+          size === "large" ? "text-base" : "text-xs",
         )}
       >
         <span className="truncate font-medium text-foreground">{label}</span>
@@ -69,7 +77,7 @@ export function PetStatBar({
         aria-valuenow={clamped}
         className={cn(
           "relative w-full overflow-visible rounded-full",
-          size === "large" ? "h-4" : "h-2",
+          size === "large" ? "h-5" : "h-2",
           sculpted
             ? cn("shadow-sm", trackClassName)
             : "bg-muted/70 ring-1 ring-inset ring-black/[0.04] dark:bg-white/[0.08] dark:ring-white/10",
@@ -84,9 +92,15 @@ export function PetStatBar({
               fillClassName ?? "bg-primary",
               fillGlowClass,
             )}
-            initial={false}
-            animate={{ width: `${percent}%` }}
-            transition={springFillTransition}
+            initial={{ width: "0%", opacity: 0 }}
+            animate={{
+              width: `${percent}%`,
+              opacity: clamped > 0 ? 1 : 0,
+            }}
+            transition={{
+              width: springFillTransition,
+              opacity: springFillOpacityTransition,
+            }}
           />
         ) : (
           <div
