@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useState } from "react"
+import { lazy, Suspense, useEffect, useLayoutEffect, useState } from "react"
 import type { RemixiconComponentType } from "@remixicon/react"
 import {
   RiCommunityLine,
@@ -8,7 +8,7 @@ import {
   RiToolsLine,
   RiWaterFlashLine,
 } from "@remixicon/react"
-import { Route, Routes } from "react-router-dom"
+import { Route, Routes, useLocation } from "react-router-dom"
 
 import { HeroOverlay } from "@/components/HeroOverlay"
 import { EnterExperienceButton } from "@/components/enter-experience-button"
@@ -98,6 +98,12 @@ const unityConceptParagraphs = [
 ]
 
 export function App() {
+  const location = useLocation()
+
+  useLayoutEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: "auto" })
+  }, [location.pathname])
+
   return (
     <Routes>
       <Route path="/" element={<Home />} />
