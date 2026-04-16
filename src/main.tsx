@@ -6,13 +6,16 @@ import "@rainbow-me/rainbowkit/styles.css"
 import "./index.css"
 import App from "./App.tsx"
 import { ThemeProvider } from "@/components/theme-provider.tsx"
+import { QueryProvider } from "@/providers/query-provider"
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <BrowserRouter>
-      <ThemeProvider defaultTheme="dark">
-        <App />
-      </ThemeProvider>
-    </BrowserRouter>
+    <QueryProvider>
+      <BrowserRouter>
+        <ThemeProvider defaultTheme="dark">
+          <App />
+        </ThemeProvider>
+      </BrowserRouter>
+    </QueryProvider>
   </StrictMode>,
 )

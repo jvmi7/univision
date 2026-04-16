@@ -1,229 +1,177 @@
-import { useMemo } from "react"
+import { Search } from "lucide-react"
+import { Link } from "react-router-dom"
 
 import { ScrollReveal, ScrollRevealGroup, ScrollRevealItem } from "@/components/ScrollReveal"
 import { Button } from "@/components/ui/button"
+import { useAuraLeaderboard } from "@/hooks/use-home-leaderboard"
 
-type LeaderboardProfile = {
-  profile: string
-  aura: number
-  totalRep: number
-  topCategory: string
-  categoryRep: {
-    Builder: number
-    Researcher: number
-    "Governance Participant": number
-    Trader: number
-    "Liquidity Provider": number
-    "Community Member": number
-  }
+function formatAura(value: number) {
+  return new Intl.NumberFormat("en-US", {
+    notation: "compact",
+    maximumFractionDigits: 1,
+  }).format(value)
 }
 
-const profiles: LeaderboardProfile[] = [
-  {
-    profile: "unicornwhale",
-    aura: 94210,
-    totalRep: 1847,
-    topCategory: "Liquidity Provider",
-    categoryRep: {
-      Builder: 182,
-      Researcher: 94,
-      "Governance Participant": 168,
-      Trader: 221,
-      "Liquidity Provider": 1182,
-      "Community Member": 0,
-    },
-  },
-  {
-    profile: "defibuilder",
-    aura: 87445,
-    totalRep: 1623,
-    topCategory: "Builder",
-    categoryRep: {
-      Builder: 1098,
-      Researcher: 160,
-      "Governance Participant": 125,
-      Trader: 80,
-      "Liquidity Provider": 60,
-      "Community Member": 100,
-    },
-  },
-  {
-    profile: "govqueen",
-    aura: 81090,
-    totalRep: 1401,
-    topCategory: "Governance Participant",
-    categoryRep: {
-      Builder: 96,
-      Researcher: 108,
-      "Governance Participant": 977,
-      Trader: 40,
-      "Liquidity Provider": 42,
-      "Community Member": 138,
-    },
-  },
-  {
-    profile: "lpmaxi",
-    aura: 78334,
-    totalRep: 1288,
-    topCategory: "Liquidity Provider",
-    categoryRep: {
-      Builder: 52,
-      Researcher: 48,
-      "Governance Participant": 84,
-      Trader: 126,
-      "Liquidity Provider": 874,
-      "Community Member": 104,
-    },
-  },
-  {
-    profile: "researcho",
-    aura: 72118,
-    totalRep: 1195,
-    topCategory: "Researcher",
-    categoryRep: {
-      Builder: 64,
-      Researcher: 836,
-      "Governance Participant": 120,
-      Trader: 34,
-      "Liquidity Provider": 41,
-      "Community Member": 100,
-    },
-  },
-  {
-    profile: "swapoor",
-    aura: 68901,
-    totalRep: 1044,
-    topCategory: "Trader",
-    categoryRep: {
-      Builder: 34,
-      Researcher: 46,
-      "Governance Participant": 82,
-      Trader: 642,
-      "Liquidity Provider": 126,
-      "Community Member": 114,
-    },
-  },
-  {
-    profile: "hookcraftr",
-    aura: 65773,
-    totalRep: 987,
-    topCategory: "Builder",
-    categoryRep: {
-      Builder: 711,
-      Researcher: 62,
-      "Governance Participant": 56,
-      Trader: 30,
-      "Liquidity Provider": 24,
-      "Community Member": 104,
-    },
-  },
-  {
-    profile: "delegatedao",
-    aura: 61229,
-    totalRep: 921,
-    topCategory: "Governance Participant",
-    categoryRep: {
-      Builder: 30,
-      Researcher: 44,
-      "Governance Participant": 652,
-      Trader: 21,
-      "Liquidity Provider": 18,
-      "Community Member": 156,
-    },
-  },
-  {
-    profile: "poolpilot",
-    aura: 58445,
-    totalRep: 876,
-    topCategory: "Liquidity Provider",
-    categoryRep: {
-      Builder: 28,
-      Researcher: 25,
-      "Governance Participant": 60,
-      Trader: 73,
-      "Liquidity Provider": 612,
-      "Community Member": 78,
-    },
-  },
-  {
-    profile: "communitypulse",
-    aura: 54112,
-    totalRep: 812,
-    topCategory: "Community Member",
-    categoryRep: {
-      Builder: 24,
-      Researcher: 41,
-      "Governance Participant": 88,
-      Trader: 18,
-      "Liquidity Provider": 21,
-      "Community Member": 488,
-    },
-  },
-]
-
-function formatNumber(value: number) {
-  return new Intl.NumberFormat("en-US").format(value)
+function formatWalletAddress(wallet: string) {
+  return `${wallet.slice(0, 6)}...${wallet.slice(-4)}`
 }
 
-export function LeaderboardSection() {
-  const filteredProfiles = useMemo(() => {
-    return [...profiles].sort((a, b) => b.aura - a.aura)
-  }, [])
+type LeaderboardSectionProps = {
+  limit?: number
+  offset?: number
+  framed?: boolean
+  showHeader?: boolean
+  showSearch?: boolean
+  showPagination?: boolean
+  showViewAllButton?: boolean
+  currentPage?: number
+  onPageChange?: (page: number) => void
+  searchQuery?: string
+  onSearchChange?: (value: string) => void
+  className?: string
+}
+
+export function LeaderboardSection({
+  limit = 10,
+  offset = 0,
+  framed = true,
+  showHeader = true,
+  showSearch = false,
+  showPagination = false,
+  showViewAllButton = true,
+  currentPage = 1,
+  onPageChange,
+  searchQuery = "",
+  onSearchChange,
+  className,
+}: LeaderboardSectionProps) {
+  const { data, isLoading, isError, isFetching } = useAuraLeaderboard(limit, offset)
+  const profiles =
+    data?.rows.filter((profile) => {
+      const normalizedQuery = searchQuery.trim().toLowerCase()
+      if (!normalizedQuery) {
+        return true
+      }
+
+      return (
+        profile.profile.toLowerCase().includes(normalizedQuery) ||
+        profile.primaryWallet.toLowerCase().includes(normalizedQuery)
+      )
+    }) ?? []
+  const hasMore = data?.hasMore ?? false
+
+  const table = (
+    <div className="mt-8 overflow-hidden rounded-none border border-white/10 bg-white/[0.03]">
+      <div className="w-full">
+        <div className="grid grid-cols-[3rem_minmax(0,1.1fr)_minmax(0,1.1fr)_minmax(0,0.8fr)] gap-4 border-b border-white/10 px-4 py-4 text-xs uppercase tracking-[0.18em] text-white/45 md:px-6">
+          <span>Rank</span>
+          <span>Profile</span>
+          <span>Primary Wallet</span>
+          <span>Aura</span>
+        </div>
+
+        {isLoading ? (
+          <div className="border-b border-white/8 px-4 py-6 text-sm text-white/62 md:px-6">
+            Loading leaderboard...
+          </div>
+        ) : isError ? (
+          <div className="border-b border-white/8 px-4 py-6 text-sm text-white/62 md:px-6">
+            Unable to load leaderboard data right now.
+          </div>
+        ) : (
+          <>
+            {profiles.length > 0 ? (
+              profiles.map((profile) => (
+                <div
+                  key={`${profile.rank}-${profile.profile}`}
+                  className="grid grid-cols-[3rem_minmax(0,1.1fr)_minmax(0,1.1fr)_minmax(0,0.8fr)] gap-4 border-b border-white/8 px-4 py-4 text-sm text-white/74 transition-colors hover:bg-white/[0.04] last:border-b-0 md:px-6"
+                >
+                  <span className="font-medium text-white">{profile.rank}</span>
+                  <span className="truncate font-medium text-white">{profile.profile}</span>
+                  <span className="truncate">{formatWalletAddress(profile.primaryWallet)}</span>
+                  <span>{formatAura(profile.aura)}</span>
+                </div>
+              ))
+            ) : (
+              <div className="border-b border-white/8 px-4 py-6 text-sm text-white/62 md:px-6">
+                No leaderboard entries match that search.
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  )
+
+  const pagination = showPagination ? (
+    <div className="mt-6 flex items-center justify-between gap-4">
+      <Button
+        variant="outline"
+        className="h-11 px-6"
+        disabled={currentPage <= 1 || isFetching}
+        onClick={() => onPageChange?.(currentPage - 1)}
+      >
+        Previous
+      </Button>
+      <p className="text-sm uppercase tracking-[0.18em] text-white/50">
+        Page {currentPage}
+      </p>
+      <Button
+        variant="brand"
+        className="h-11 px-6"
+        disabled={!hasMore || isFetching}
+        onClick={() => onPageChange?.(currentPage + 1)}
+      >
+        Next
+      </Button>
+    </div>
+  ) : null
 
   return (
     <section
       id="leaderboard"
-      className="mx-auto max-w-7xl px-6 py-16 md:px-8 md:py-24"
+      className={`mx-auto max-w-7xl px-6 py-16 md:px-8 md:py-24 ${className ?? ""}`}
     >
-      <ScrollReveal className="overflow-hidden rounded-none border border-white/10 bg-black/34 p-8 shadow-[0_24px_80px_rgba(0,0,0,0.32)] backdrop-blur-xl md:p-10">
-        <ScrollRevealGroup className="max-w-3xl">
-          <ScrollRevealItem className="text-xs uppercase tracking-[0.24em] text-white/50">
-            Leaderboard
-          </ScrollRevealItem>
-          <ScrollRevealItem className="mt-4 text-3xl font-semibold tracking-tight text-white md:text-5xl">
-            The most aligned participants in the Uniswap economy
-          </ScrollRevealItem>
-        </ScrollRevealGroup>
-
-        <ScrollReveal className="mt-8 overflow-x-auto rounded-none border border-white/10 bg-white/[0.03]">
-          <div className="min-w-[720px]">
-            <ScrollRevealItem className="grid grid-cols-[0.55fr_1.4fr_1fr_1.3fr_1fr] gap-4 border-b border-white/10 px-4 py-4 text-xs uppercase tracking-[0.18em] text-white/45 md:px-6">
-              <span>Rank</span>
-              <span>Profile</span>
-              <span>Aura</span>
-              <span>Top REP Category</span>
-              <span>Total REP</span>
-            </ScrollRevealItem>
-
-            <ScrollRevealGroup delayChildren={0.04} staggerChildren={0.045}>
-              {filteredProfiles.map((profile, index) => (
-                <ScrollRevealItem key={profile.profile}>
-                  <a
-                    href="#get-started"
-                    className="grid grid-cols-[0.55fr_1.4fr_1fr_1.3fr_1fr] gap-4 border-b border-white/8 px-4 py-4 text-sm text-white/74 transition-colors hover:bg-white/[0.04] last:border-b-0 md:px-6"
-                  >
-                    <span className="font-medium text-white">{index + 1}</span>
-                    <span className="font-medium text-white">{profile.profile}</span>
-                    <span>{formatNumber(profile.aura)}</span>
-                    <span>{profile.topCategory}</span>
-                    <span>{formatNumber(profile.totalRep)}</span>
-                  </a>
-                </ScrollRevealItem>
-              ))}
+      {framed ? (
+        <ScrollReveal className="overflow-hidden rounded-none border border-white/10 bg-black/34 p-8 shadow-[0_24px_80px_rgba(0,0,0,0.32)] backdrop-blur-xl md:p-10">
+          {showHeader ? (
+            <ScrollRevealGroup className="max-w-3xl">
+              <ScrollRevealItem className="text-xs uppercase tracking-[0.24em] text-white/50">
+                Leaderboard
+              </ScrollRevealItem>
+              <ScrollRevealItem className="mt-4 text-3xl font-semibold tracking-tight text-white md:text-5xl">
+                The most aligned participants in the Uniswap economy
+              </ScrollRevealItem>
             </ScrollRevealGroup>
-          </div>
+          ) : null}
+          {table}
+          {pagination}
+          {showViewAllButton ? (
+            <ScrollReveal className="mt-8" delay={0.1}>
+              <Button asChild variant="brand" className="h-11 px-6">
+                <Link to="/leaderboard">View Full Leaderboard</Link>
+              </Button>
+            </ScrollReveal>
+          ) : null}
         </ScrollReveal>
-
-        <ScrollReveal className="mt-8" delay={0.1}>
-          <Button
-            asChild
-            variant="brand"
-            className="h-11 px-6"
-          >
-            <a href="#get-started">View Full Leaderboard</a>
-          </Button>
-        </ScrollReveal>
-      </ScrollReveal>
+      ) : (
+        <>
+          {showSearch ? (
+            <div className="mb-6 flex items-center gap-3 border border-white/10 bg-black/34 px-4 py-3 backdrop-blur-xl">
+              <Search className="size-4 shrink-0 text-white/45" />
+              <input
+                type="search"
+                value={searchQuery}
+                onChange={(event) => onSearchChange?.(event.target.value)}
+                placeholder="Search by profile or wallet"
+                className="w-full bg-transparent text-sm text-white outline-none placeholder:text-white/38"
+              />
+            </div>
+          ) : null}
+          {table}
+          {pagination}
+        </>
+      )}
     </section>
   )
 }

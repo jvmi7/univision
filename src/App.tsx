@@ -27,6 +27,7 @@ import {
 import type { NetworkNode } from "@/lib/generateMockData"
 
 const NetworkGraph = lazy(() => import("@/components/NetworkGraph"))
+const LeaderboardPage = lazy(() => import("@/pages/leaderboard-page"))
 const ProfileExperience = lazy(() => import("@/pages/profile-experience"))
 
 const howItWorksItems = [
@@ -100,6 +101,16 @@ export function App() {
   return (
     <Routes>
       <Route path="/" element={<Home />} />
+      <Route
+        path="/leaderboard"
+        element={
+          <Suspense
+            fallback={<main className="fixed inset-0 bg-black" aria-busy aria-label="Loading" />}
+          >
+            <LeaderboardPage />
+          </Suspense>
+        }
+      />
       <Route
         path="/profile"
         element={
