@@ -19,10 +19,10 @@ export const NODE_COLORS: Record<ParticipantType, string> = {
 }
 
 export const PARTICLE_PINK_COLORS = [
-  "#E14DFF",
-  "#FF5FD2",
-  "#FF87B7",
-  "#FFB3E6",
+  "#FF1FBF",
+  "#FF3BCD",
+  "#FF57B7",
+  "#FF74D0",
 ] as const
 
 export const NETWORK_CONFIG = {

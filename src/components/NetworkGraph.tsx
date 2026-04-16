@@ -50,8 +50,8 @@ function createNodeMaterial() {
   material.toneMapped = false
   material.depthWrite = false
   material.blending = THREE.AdditiveBlending
-  material.emissive = new THREE.Color("#ffb8f8")
-  material.emissiveIntensity = 0.65
+  material.emissive = new THREE.Color("#ff62cd")
+  material.emissiveIntensity = 0.72
 
   material.onBeforeCompile = (shader) => {
     shader.vertexShader = shader.vertexShader
@@ -334,8 +334,8 @@ function NetworkScene({
             Math.floor(colorRandom() * PARTICLE_PINK_COLORS.length)
           ]
         )
-      const auraTint = THREE.MathUtils.lerp(0.06, 0.18, node.auraScore / 100)
-      return color.lerp(new THREE.Color("#fff0fb"), auraTint)
+      const auraTint = THREE.MathUtils.lerp(0.03, 0.1, node.auraScore / 100)
+      return color.lerp(new THREE.Color("#ffd6f4"), auraTint)
     })
 
     for (let index = 0; index < data.nodes.length; index += 1) {
