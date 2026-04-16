@@ -14,6 +14,7 @@ import {
   type UnityPetStatKey,
   type UnityPetStats,
 } from "./unity-pet-types"
+import { Link } from "react-router-dom"
 
 const MAX_PET_NAME_LENGTH = 28
 
@@ -261,7 +262,9 @@ export function UnityPetCard({
             variant="outline"
             onClick={onAssignReputation}
           >
+            <Link to="/leaderboard">
             Explore leaderboard
+            </Link>
           </Button>
         </div>
       </div>

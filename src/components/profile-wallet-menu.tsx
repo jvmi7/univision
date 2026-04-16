@@ -1,6 +1,6 @@
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu"
 import { useConnectModal, useChainModal } from "@rainbow-me/rainbowkit"
-import { Check, ChevronDown, Copy, Link2, LogOut, Unplug, Wallet } from "lucide-react"
+import { Check, ChevronDown, Copy, Link2, LogOut, Network, Unplug, Wallet } from "lucide-react"
 import { useState } from "react"
 import { useAccount, useDisconnect } from "wagmi"
 
@@ -27,7 +27,7 @@ function shortenAddressMiddle(address: string) {
 }
 
 const menuContentClass = cn(
-  "min-w-[13.5rem] overflow-hidden rounded-2xl border border-white/25 bg-white/[0.07] p-1 text-foreground shadow-[0_16px_48px_rgba(0,0,0,0.16)] backdrop-blur-2xl [isolation:isolate] dark:border-white/15 dark:bg-black/[0.14] dark:shadow-[0_20px_56px_rgba(0,0,0,0.42)]",
+  "min-w-[20rem] overflow-hidden rounded-2xl border border-white/25 bg-white/[0.07] p-2 text-foreground shadow-[0_16px_48px_rgba(0,0,0,0.16)] backdrop-blur-2xl [isolation:isolate] dark:border-white/15 dark:bg-black/[0.14] dark:shadow-[0_20px_56px_rgba(0,0,0,0.42)]",
   "z-[200] duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] will-change-transform",
   "data-[state=open]:animate-in data-[state=closed]:animate-out",
   "data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
@@ -131,41 +131,29 @@ export function ProfileWalletMenu({ className }: { className?: string }) {
               sideOffset={8}
             >
               <div className={cn("px-2.5 py-2", labelClass)}>Connected</div>
-              <div className="flex items-center justify-center gap-2 px-2.5 pb-2">
-                <p
-                  className={cn(
-                    "font-mono text-[0.7rem] leading-none tracking-tight whitespace-nowrap",
-                    isDark ? "text-white/80" : "text-slate-800/85",
-                  )}
-                >
-                  {shortenAddressMiddle(address)}
-                </p>
-                <button
-                  type="button"
-                  aria-label={addressCopied ? "Copied" : "Copy address"}
-                  className={cn(
-                    "inline-flex size-7 shrink-0 items-center justify-center rounded-lg border border-white/15 bg-white/8 text-foreground/80 transition-colors hover:bg-white/14 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#FC72FF]/40 dark:border-white/10 dark:bg-white/[0.06] dark:hover:bg-white/12",
-                    addressCopied &&
-                      cn(
-                        "border-emerald-400/40 bg-emerald-500/12",
-                        isDark ? "text-emerald-200" : "text-emerald-800",
-                      ),
-                  )}
-                  onClick={() => void onCopyAddress()}
-                  onPointerDown={(event) => event.preventDefault()}
-                >
-                  {addressCopied ? (
-                    <Check className="size-3.5" strokeWidth={2.25} />
-                  ) : (
-                    <Copy className="size-3.5 opacity-90" />
-                  )}
-                </button>
-              </div>
-
-              <DropdownMenu.Separator className="my-1.5 h-px bg-white/12 dark:bg-white/[0.08]" />
+              <DropdownMenu.Item
+                className={cn(
+                  itemClass,
+                  "mx-0.5 mb-1",
+                  addressCopied &&
+                    (isDark ? "text-emerald-200 data-highlighted:text-emerald-100" : "text-emerald-800 data-highlighted:text-emerald-900"),
+                )}
+                onSelect={(event) => {
+                  event.preventDefault()
+                  void onCopyAddress()
+                }}
+              >
+                {addressCopied ? (
+                  <Check className="size-3.5 shrink-0 opacity-80" strokeWidth={2.25} />
+                ) : (
+                  <Copy className="size-3.5 shrink-0 opacity-80" />
+                )}
+                {addressCopied ? "Copied" : "Copy address"}
+              </DropdownMenu.Item>
 
               {openChainModal ? (
                 <DropdownMenu.Item className={itemClass} onSelect={() => openChainModal()}>
+                  <Network className="size-3.5 shrink-0 opacity-80" />
                   Switch network
                 </DropdownMenu.Item>
               ) : null}
@@ -215,8 +203,7 @@ export function ProfileWalletMenu({ className }: { className?: string }) {
           <DialogHeader>
             <DialogTitle className="text-2xl md:text-3xl">Link another wallet</DialogTitle>
             <DialogDescription>
-              Add additional addresses that should roll up to this Unity Pet profile. For now this
-              is stored locally in your browser until onchain linking ships.
+              Link additional wallets to your Unity Pet profile. You will need to confirm on both wallets.
             </DialogDescription>
           </DialogHeader>
 
