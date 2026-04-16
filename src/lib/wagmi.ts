@@ -1,5 +1,7 @@
 import { getDefaultConfig } from "@rainbow-me/rainbowkit"
 import { arbitrum, base, mainnet, optimism } from "wagmi/chains"
+import { anvilLocalhost } from "@/lib/chains"
+import { isAnvilChainEnabledInConfig } from "@/lib/local-chain-config"
 
 const projectId = import.meta.env.VITE_WALLETCONNECT_PROJECT_ID ?? ""
 
@@ -13,6 +15,8 @@ if (!projectId && import.meta.env.DEV) {
 export const wagmiConfig = getDefaultConfig({
   appName: "Univision",
   projectId,
-  chains: [mainnet, base, arbitrum, optimism],
+  chains: isAnvilChainEnabledInConfig()
+    ? [mainnet, base, arbitrum, optimism, anvilLocalhost]
+    : [mainnet, base, arbitrum, optimism],
   ssr: false,
 })

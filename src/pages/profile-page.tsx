@@ -3,7 +3,15 @@ import { animate, motion, useReducedMotion } from "framer-motion"
 import { useEffect, useRef, useState } from "react"
 import { MoonStar, SunMedium } from "lucide-react"
 import { Link } from "react-router-dom"
-import { useAccount } from "wagmi"
+import { zeroAddress } from "viem"
+import {
+  useAccount,
+  useChainId,
+  useSimulateContract,
+  useSwitchChain,
+  useWaitForTransactionReceipt,
+  useWriteContract,
+} from "wagmi"
 
 import { MeadowScene } from "@/components/meadow-scene"
 import { HatchingSpriteAnimation } from "@/components/unity-pet/hatching-sprite-animation"
@@ -14,6 +22,7 @@ import {
   type UnityPetStage,
   type UnityPetTheme,
 } from "@/components/unity-pet/unity-pet-assets"
+import { LocalChainDevPanel } from "@/components/local-chain-dev-panel"
 import { ProfileWalletMenu } from "@/components/profile-wallet-menu"
 import { UnityPetCard } from "@/components/unity-pet/unity-pet-card"
 import type { UnityPetStats } from "@/components/unity-pet/unity-pet-types"
@@ -21,6 +30,13 @@ import { useDocumentTheme } from "@/hooks/use-document-theme"
 import { cn } from "@/lib/utils"
 import { useTheme } from "@/components/theme-provider"
 import { Button } from "@/components/ui/button"
+import { localNftMintToAbi } from "@/lib/abis/local-dev"
+import {
+  isFakeUniConfigured,
+  isLocalNftConfigured,
+  LOCAL_CHAIN,
+  localNftAddress,
+} from "@/lib/local-chain-config"
 
 const demoPetStats: UnityPetStats = {
   researcher: 28,
@@ -61,9 +77,30 @@ type CompanionSnapshot =
   | { hatched: true; theme: UnityPetTheme; stage: UnityPetStage }
 
 export function ProfilePage() {
-  const { isConnected, status } = useAccount()
+  const { address, isConnected, status } = useAccount()
+  const chainId = useChainId()
+  const { switchChain } = useSwitchChain()
   const { openConnectModal } = useConnectModal()
   const walletBusy = status === "connecting" || status === "reconnecting"
+  const nftMintOnchain = Boolean(localNftAddress)
+
+  const {
+    writeContract: writeMintNft,
+    data: mintTxHash,
+    error: mintWriteError,
+    isPending: mintWritePending,
+    reset: resetMintWrite,
+  } = useWriteContract()
+
+  const {
+    data: mintReceipt,
+    isLoading: mintConfirmPending,
+    isSuccess: mintReceiptSuccess,
+  } = useWaitForTransactionReceipt({
+    hash: mintTxHash,
+  })
+
+  const [mintError, setMintError] = useState<string | null>(null)
   const { setTheme } = useTheme()
   const resolved = useDocumentTheme()
   const isDark = resolved === "dark"
@@ -71,6 +108,23 @@ export function ProfilePage() {
   const reduceMotion = useReducedMotion()
   const [companion, setCompanion] = useState<CompanionSnapshot>({ hatched: false })
   const hasHatched = companion.hatched === true
+
+  const mintSimulate = useSimulateContract({
+    address: (localNftAddress ?? zeroAddress) as `0x${string}`,
+    abi: localNftMintToAbi,
+    functionName: "mint",
+    args: [(address ?? zeroAddress) as `0x${string}`],
+    chainId: LOCAL_CHAIN.id,
+    query: {
+      enabled:
+        nftMintOnchain &&
+        Boolean(localNftAddress && address) &&
+        chainId === LOCAL_CHAIN.id &&
+        isConnected &&
+        !hasHatched,
+    },
+  })
+
   const [mintPhase, setMintPhase] = useState<"idle" | "hatching">("idle")
   const [cardStats, setCardStats] = useState<UnityPetStats>(zeroPetStats)
   const [auraPoints, setAuraPoints] = useState(0)
@@ -80,6 +134,8 @@ export function ProfilePage() {
   const statsRevealGuardRef = useRef(false)
   /** After Mint + hatch, skip the delayed entrance timer (card is already shown). */
   const skipCardEntranceDelayRef = useRef(false)
+  /** Prevents duplicate `onHatchComplete` (e.g. Strict Mode / release + tail race). */
+  const hatchCompleteGuardRef = useRef(false)
 
   const assignedAura =
     auraPoints >= TARGET_AURA_POINTS
@@ -146,14 +202,87 @@ export function ProfilePage() {
       return
     }
     setMintPhase("idle")
-  }, [isConnected, mintPhase])
+    resetMintWrite()
+  }, [isConnected, mintPhase, resetMintWrite])
+  /* eslint-enable react-hooks/set-state-in-effect */
+
+  /* eslint-disable react-hooks/set-state-in-effect -- surface writeContract / receipt failures */
+  useEffect(() => {
+    if (mintPhase !== "hatching" || !nftMintOnchain) {
+      return
+    }
+    if (!mintWriteError) {
+      return
+    }
+    setMintPhase("idle")
+    setMintError(
+      "message" in mintWriteError ? mintWriteError.message : String(mintWriteError),
+    )
+    resetMintWrite()
+  }, [mintPhase, nftMintOnchain, mintWriteError, resetMintWrite])
+
+  useEffect(() => {
+    if (mintPhase !== "hatching" || !nftMintOnchain || !mintTxHash) {
+      return
+    }
+    if (mintConfirmPending || !mintReceipt) {
+      return
+    }
+    if (mintReceipt.status === "success") {
+      return
+    }
+    setMintPhase("idle")
+    setMintError("Mint transaction did not succeed onchain.")
+    resetMintWrite()
+  }, [
+    mintPhase,
+    nftMintOnchain,
+    mintTxHash,
+    mintConfirmPending,
+    mintReceipt,
+    resetMintWrite,
+  ])
   /* eslint-enable react-hooks/set-state-in-effect */
 
   const onMint = () => {
+    setMintError(null)
+    if (!isConnected || !address) {
+      openConnectModal?.()
+      return
+    }
+
+    hatchCompleteGuardRef.current = false
+
+    if (nftMintOnchain) {
+      if (chainId !== LOCAL_CHAIN.id) {
+        switchChain?.({ chainId: LOCAL_CHAIN.id })
+        setMintError("Switch to Anvil Local, then tap Mint again.")
+        return
+      }
+      resetMintWrite()
+      const request = mintSimulate.data?.request
+      if (!request) {
+        setMintError(
+          mintSimulate.isError
+            ? (mintSimulate.error?.message ?? "Mint simulation failed.")
+            : "Still preparing mint — wait a moment and tap Mint again.",
+        )
+        return
+      }
+      // Call write in the same click tick as the wallet prompt (before React re-renders).
+      writeMintNft(request)
+      setMintPhase("hatching")
+      return
+    }
+
     setMintPhase("hatching")
   }
 
   const onHatchComplete = () => {
+    if (hatchCompleteGuardRef.current) {
+      return
+    }
+    hatchCompleteGuardRef.current = true
     const rolled = rollRandomHatchedCompanion()
     skipCardEntranceDelayRef.current = true
     setCardRevealStarted(true)
@@ -162,7 +291,18 @@ export function ProfilePage() {
     setCardStats(zeroPetStats)
     setAuraPoints(0)
     statsRevealGuardRef.current = false
+    resetMintWrite()
+    setMintError(null)
   }
+
+  const mintPrepPending =
+    nftMintOnchain &&
+    isConnected &&
+    chainId === LOCAL_CHAIN.id &&
+    mintPhase === "idle" &&
+    !mintSimulate.isError &&
+    !mintSimulate.data?.request &&
+    (mintSimulate.isPending || mintSimulate.isFetching)
 
   return (
     <main className="fixed inset-0 h-svh w-full overflow-hidden bg-black text-foreground">
@@ -173,6 +313,12 @@ export function ProfilePage() {
       <div className="absolute right-4 top-4 z-20">
         <ProfileWalletMenu />
       </div>
+
+      {isFakeUniConfigured() || isLocalNftConfigured() ? (
+        <div className="pointer-events-none absolute bottom-6 left-4 z-20">
+          <LocalChainDevPanel />
+        </div>
+      ) : null}
 
       <div className="absolute left-4 top-4 z-10 flex flex-wrap items-center gap-2">
         <Button
@@ -220,17 +366,34 @@ export function ProfilePage() {
                 }`}
               >
                 {mintPhase === "hatching"
-                  ? "Hatching your companion…"
+                  ? nftMintOnchain
+                    ? mintWritePending
+                      ? "Confirm the mint in your wallet…"
+                      : mintConfirmPending
+                        ? "Minting onchain — hatching your companion…"
+                        : "Hatching your companion…"
+                    : "Hatching your companion…"
                   : isConnected
                     ? "Reveal your Unity Pet"
                     : "Connect your wallet to mint and reveal your Unity Pet."}
               </p>
+              {mintError ? (
+                <p
+                  className={`text-balance text-[0.7rem] leading-snug ${
+                    isDark ? "text-red-300/90" : "text-red-700/90"
+                  }`}
+                >
+                  {mintError}
+                </p>
+              ) : null}
               <div className="flex min-h-9 w-full items-center justify-center">
                 <Button
                   aria-busy={isConnected && mintPhase === "hatching"}
-                  className="w-full min-w-[8rem] border-white/30 bg-white/25 text-foreground shadow-sm backdrop-blur-sm hover:bg-white/35 disabled:opacity-60 dark:border-white/20 dark:bg-white/15 dark:hover:bg-white/25"
+                  className="w-full min-w-[8rem] border-white/30 bg-white/25 text-foreground shadow-sm backdrop-blur-sm hover:bg-white/35 disabled:opacity-60 dark:border-white/20 dark:bg-white/15 dark:hover:bg-white/25 cursor-pointer"
                   disabled={
-                    isConnected ? mintPhase === "hatching" : walletBusy || !openConnectModal
+                    isConnected
+                      ? mintPhase === "hatching" || mintPrepPending
+                      : walletBusy || !openConnectModal
                   }
                   size="lg"
                   type="button"
@@ -243,11 +406,15 @@ export function ProfilePage() {
                     onMint()
                   }}
                 >
-                  {isConnected
-                    ? "Mint"
-                    : walletBusy
+                  {!isConnected
+                    ? walletBusy
                       ? "Connecting…"
-                      : "Connect wallet"}
+                      : "Connect wallet"
+                    : mintPrepPending
+                      ? "Preparing…"
+                      : mintPhase === "hatching" && nftMintOnchain
+                        ? "Minting…"
+                        : "Mint"}
                 </Button>
               </div>
             </motion.div>
@@ -282,6 +449,8 @@ export function ProfilePage() {
               ) : (
                 <HatchingSpriteAnimation
                   className="absolute inset-0 h-full w-full drop-shadow-[0_12px_28px_rgba(0,0,0,0.35)]"
+                  holdUntilRelease={nftMintOnchain}
+                  release={mintReceiptSuccess}
                   onComplete={onHatchComplete}
                 />
               )}
