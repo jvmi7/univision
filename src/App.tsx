@@ -32,7 +32,7 @@ const ProfileExperience = lazy(() => import("@/pages/profile-experience"))
 
 const howItWorksItems = [
   {
-    title: "Hold UNI. Build Aura.",
+    title: "Hold UNI. Build Aura. Assign REP.",
     body: "Hold UNI to grow Aura over time, with a 2x boost for providing liquidity.",
   },
   {
