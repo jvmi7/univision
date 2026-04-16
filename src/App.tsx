@@ -33,15 +33,15 @@ const ProfileExperience = lazy(() => import("@/pages/profile-experience"))
 const howItWorksItems = [
   {
     title: "Hold UNI. Build Aura.",
-    body: "Your Aura score grows automatically the longer you hold UNI. No staking. No lockups. Just hold, and your alignment speaks for itself. Providing liquidity earns a 2x Aura boost.",
+    body: "Hold UNI to grow Aura over time, with a 2x boost for providing liquidity.",
   },
   {
     title: "Earn REP from the community.",
-    body: "Aura holders can recognize others by assigning REP in categories like Builder, Governance Participant, or Community Member. REP is permanent and public - a lasting record of your contributions.",
+    body: "Aura holders assign public REP to recognize visible contributions across the ecosystem.",
   },
   {
     title: "Your profile, your identity.",
-    body: "Claim a unique onchain username, link your wallets, and watch your Unigotchi evolve as your reputation grows. Your profile is a living snapshot of everything you've done in the Uniswap ecosystem.",
+    body: "Claim a username, link wallets, and let your onchain profile evolve with your reputation.",
   },
 ]
 
@@ -265,8 +265,10 @@ function Home() {
                   key={item.title}
                   className="rounded-none border border-white/8 bg-white/4 p-6"
                 >
-                  <p className="text-sm font-medium text-[#FF57B7]">{item.title}</p>
-                  <p className="mt-3 text-sm leading-7 text-white/62">{item.body}</p>
+                  <p className="text-lg font-medium text-[#FF57B7] md:text-xl">
+                    {item.title}
+                  </p>
+                  <p className="mt-3 text-sm text-white/62">{item.body}</p>
                 </ScrollRevealItem>
               ))}
             </ScrollRevealGroup>
