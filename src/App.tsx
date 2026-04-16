@@ -127,6 +127,30 @@ export function App() {
           </Suspense>
         }
       />
+      <Route
+        path="/profile/:identifier"
+        element={
+          <Suspense
+            fallback={<main className="fixed inset-0 bg-black" aria-busy aria-label="Loading" />}
+          >
+            <ProfileExperience />
+          </Suspense>
+        }
+      />
+      {/* Catch-all single-segment route must come last so static paths like
+          `/leaderboard` win the match. React Router v6 ranks static over
+          dynamic regardless of declaration order, but keeping this last is
+          still the clearest signal to future readers. */}
+      <Route
+        path="/:identifier"
+        element={
+          <Suspense
+            fallback={<main className="fixed inset-0 bg-black" aria-busy aria-label="Loading" />}
+          >
+            <ProfileExperience />
+          </Suspense>
+        }
+      />
     </Routes>
   )
 }

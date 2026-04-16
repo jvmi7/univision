@@ -27,6 +27,19 @@ export const localNftAddress = parseAddress(
   import.meta.env.VITE_LOCAL_NFT_ADDRESS,
 )
 
+// Deterministic on a fresh Anvil node because LocalSetup.s.sol deploys these
+// in fixed order from the same deployer (account #9). Override via env for
+// Sepolia or any non-local deployment.
+export const repEmitterAddress = parseAddress(
+  import.meta.env.VITE_REP_EMITTER_ADDRESS ??
+    "0xb19b36b1456e65e3a6d514d3f715f204bd59f431",
+)
+
+export const profileRegistryAddress = parseAddress(
+  import.meta.env.VITE_PROFILE_REGISTRY_ADDRESS ??
+    "0xa15bb66138824a1c7167f5e85b957d04dd34e468",
+)
+
 export function isFakeUniConfigured(): boolean {
   return Boolean(fakeUniAddress)
 }

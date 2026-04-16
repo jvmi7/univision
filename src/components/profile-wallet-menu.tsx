@@ -1,10 +1,12 @@
 import * as DropdownMenu from "@radix-ui/react-dropdown-menu"
 import { useConnectModal, useChainModal } from "@rainbow-me/rainbowkit"
-import { Check, ChevronDown, Copy, Link2, LogOut, Network, Unplug, Wallet } from "lucide-react"
+import { Check, ChevronDown, Copy, Link2, LogOut, Network, Unplug, User, Wallet } from "lucide-react"
 import { useState } from "react"
+import { useNavigate } from "react-router-dom"
 import { useAccount, useDisconnect } from "wagmi"
 
 import { useLinkedUnityWallets } from "@/hooks/use-linked-unity-wallets"
+import { useProfile } from "@/hooks/use-profile"
 import { useDocumentTheme } from "@/hooks/use-document-theme"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -51,6 +53,15 @@ export function ProfileWalletMenu({ className }: { className?: string }) {
   const { openChainModal } = useChainModal()
   const { linkedWallets, addLinkedWallet, removeLinkedWallet } =
     useLinkedUnityWallets(address)
+  const navigate = useNavigate()
+  // Look up the caller's onchain profile so the menu can link straight to
+  // `/username` when a name is set, falling back to the wallet address.
+  const connectedProfile = useProfile(
+    isConnected && address ? address : undefined,
+  )
+  const profileHref = address
+    ? `/${connectedProfile.data?.username?.trim() || address}`
+    : null
 
   const [linkDialogOpen, setLinkDialogOpen] = useState(false)
   const [linkInput, setLinkInput] = useState("")
@@ -131,6 +142,20 @@ export function ProfileWalletMenu({ className }: { className?: string }) {
               sideOffset={8}
             >
               <div className={cn("px-2.5 py-2", labelClass)}>Connected</div>
+
+              {profileHref ? (
+                <DropdownMenu.Item
+                  className={cn(itemClass, "mx-0.5 mb-1")}
+                  onSelect={(event) => {
+                    event.preventDefault()
+                    navigate(profileHref)
+                  }}
+                >
+                  <User className="size-3.5 shrink-0 opacity-80" />
+                  View my profile
+                </DropdownMenu.Item>
+              ) : null}
+
               <DropdownMenu.Item
                 className={cn(
                   itemClass,

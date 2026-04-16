@@ -4,10 +4,12 @@ import { Link } from "react-router-dom"
 
 import { LeaderboardSection } from "@/components/LeaderboardSection"
 import { Button } from "@/components/ui/button"
+import type { LeaderboardKind } from "@/lib/leaderboard-api"
 
 const PAGE_SIZE = 25
 
 export default function LeaderboardPage() {
+  const [kind, setKind] = useState<LeaderboardKind>("aura")
   const [page, setPage] = useState(1)
   const [searchQuery, setSearchQuery] = useState("")
   const offset = (page - 1) * PAGE_SIZE
@@ -27,7 +29,8 @@ export default function LeaderboardPage() {
                 Leaderboard
               </h1>
               <p className="mt-5 max-w-2xl text-base leading-8 text-white/68 md:text-lg">
-                Explore the most aligned participants in the Uniswap economy.
+                Explore the most aligned participants in the Uniswap economy
+                and every REP category.
               </p>
             </div>
 
@@ -49,6 +52,14 @@ export default function LeaderboardPage() {
           showSearch
           showPagination
           showViewAllButton={false}
+          kind={kind}
+          showKindTabs
+          onKindChange={(next) => {
+            setKind(next)
+            // Reset pagination and search whenever the board changes so the
+            // user isn't stranded on page 5 of Aura when switching to Builder.
+            setPage(1)
+          }}
           currentPage={page}
           onPageChange={setPage}
           searchQuery={searchQuery}
