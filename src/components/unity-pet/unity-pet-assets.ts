@@ -1,3 +1,5 @@
+import { keccak256, stringToBytes } from "viem"
+
 import classic1 from "@/assets/unity-pets/classic-1.png"
 import classic2 from "@/assets/unity-pets/classic-2.png"
 import classic3 from "@/assets/unity-pets/classic-3.png"
@@ -59,5 +61,18 @@ export function rollRandomHatchedCompanion(): {
   const theme =
     UNITY_PET_THEMES[Math.floor(Math.random() * UNITY_PET_THEMES.length)]!
   const stage = (Math.floor(Math.random() * 3) + 1) as UnityPetStage
+  return { theme, stage }
+}
+
+/** Stable theme/stage for a given onchain profile (username + `createdAt`). */
+export function deterministicCompanionFromSeed(
+  username: string,
+  createdAt: bigint,
+): { theme: UnityPetTheme; stage: UnityPetStage } {
+  const h = keccak256(stringToBytes(`${username}:${createdAt.toString()}:pet`))
+  const n = BigInt(h)
+  const theme =
+    UNITY_PET_THEMES[Number(n % BigInt(UNITY_PET_THEMES.length))]!
+  const stage = (Number((n >> 16n) % 3n) + 1) as UnityPetStage
   return { theme, stage }
 }

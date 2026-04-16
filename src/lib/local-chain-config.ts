@@ -27,6 +27,10 @@ export const localNftAddress = parseAddress(
   import.meta.env.VITE_LOCAL_NFT_ADDRESS,
 )
 
+export const profileRegistryAddress = parseAddress(
+  import.meta.env.VITE_PROFILE_REGISTRY_ADDRESS,
+)
+
 export function isFakeUniConfigured(): boolean {
   return Boolean(fakeUniAddress)
 }
@@ -35,12 +39,17 @@ export function isLocalNftConfigured(): boolean {
   return Boolean(localNftAddress)
 }
 
+export function isProfileRegistryConfigured(): boolean {
+  return Boolean(profileRegistryAddress)
+}
+
 /** Show the floating local-chain dev tools (faucet, NFT mint, Anvil ETH). */
 export function isLocalChainDevPanelEnabled(): boolean {
   return (
     isAnvilChainEnabledInConfig() &&
     (Boolean(import.meta.env.DEV) ||
       isFakeUniConfigured() ||
-      isLocalNftConfigured())
+      isLocalNftConfigured() ||
+      isProfileRegistryConfigured())
   )
 }

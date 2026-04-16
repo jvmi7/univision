@@ -1,11 +1,13 @@
 import { useConnectModal } from "@rainbow-me/rainbowkit"
 import { animate, motion, useReducedMotion } from "framer-motion"
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
+import { MoonStar, SunMedium } from "lucide-react"
 import { Link } from "react-router-dom"
 import { zeroAddress } from "viem"
 import {
   useAccount,
   useChainId,
+  useReadContract,
   useSimulateContract,
   useSwitchChain,
   useWaitForTransactionReceipt,
@@ -14,6 +16,7 @@ import {
 
 import { HatchingSpriteAnimation } from "@/components/unity-pet/hatching-sprite-animation"
 import {
+  deterministicCompanionFromSeed,
   getUnityPetPortraitUrl,
   rollRandomHatchedCompanion,
   unityPetEggUrl,
@@ -26,13 +29,23 @@ import { UnityPetCard } from "@/components/unity-pet/unity-pet-card"
 import type { UnityPetStats } from "@/components/unity-pet/unity-pet-types"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
-import { localNftMintToAbi } from "@/lib/abis/local-dev"
+import { profileRegistryAbi } from "@/lib/abis/profile-registry"
 import {
   isFakeUniConfigured,
   isLocalNftConfigured,
+  isProfileRegistryConfigured,
   LOCAL_CHAIN,
-  localNftAddress,
+  profileRegistryAddress,
 } from "@/lib/local-chain-config"
+import {
+  defaultProfileUsernameFromAddress,
+  PROFILE_USERNAME_MAX_LEN,
+  sanitizeProfileUsername,
+} from "@/lib/profile-username"
+import {
+  deriveAuraPointsFromCreatedAt,
+  deriveUnityPetStatsFromProfile,
+} from "@/lib/profile-onchain-stats"
 
 const demoPetStats: UnityPetStats = {
   researcher: 28,
@@ -78,10 +91,56 @@ export function ProfilePage() {
   const { switchChain } = useSwitchChain()
   const { openConnectModal } = useConnectModal()
   const walletBusy = status === "connecting" || status === "reconnecting"
-  const nftMintOnchain = Boolean(localNftAddress)
+  /** Onchain profile flow: `ProfileRegistry.registerName` only (no ERC-721 `mint`). */
+  const profileRegisterOnchain = Boolean(profileRegistryAddress)
+  const profileReadEnabled =
+    profileRegisterOnchain &&
+    Boolean(address) &&
+    isConnected &&
+    chainId === LOCAL_CHAIN.id
 
   const {
-    writeContract: writeMintNft,
+    data: primaryWallet,
+    status: primaryReadStatus,
+    refetch: refetchPrimaryWallet,
+  } = useReadContract({
+    address: (profileRegistryAddress ?? zeroAddress) as `0x${string}`,
+    abi: profileRegistryAbi,
+    functionName: "getPrimaryWallet",
+    args: [address ?? zeroAddress],
+    chainId: LOCAL_CHAIN.id,
+    query: { enabled: profileReadEnabled },
+  })
+
+  const hasPrimaryWallet =
+    primaryReadStatus === "success" &&
+    primaryWallet !== undefined &&
+    primaryWallet !== zeroAddress
+
+  const {
+    data: profileTuple,
+    status: profileReadStatus,
+    refetch: refetchProfileTuple,
+  } = useReadContract({
+    address: (profileRegistryAddress ?? zeroAddress) as `0x${string}`,
+    abi: profileRegistryAbi,
+    functionName: "getProfile",
+    args: hasPrimaryWallet ? [primaryWallet as `0x${string}`] : undefined,
+    chainId: LOCAL_CHAIN.id,
+    query: { enabled: profileReadEnabled && hasPrimaryWallet },
+  })
+
+  const onchainUsername =
+    profileTuple && Array.isArray(profileTuple)
+      ? (profileTuple[0] as string)
+      : ""
+  const hasOnchainProfile =
+    profileReadEnabled &&
+    profileReadStatus === "success" &&
+    onchainUsername.length > 0
+
+  const {
+    writeContract: writeOnchainTx,
     data: mintTxHash,
     error: mintWriteError,
     isPending: mintWritePending,
@@ -98,23 +157,74 @@ export function ProfilePage() {
 
   const [mintError, setMintError] = useState<string | null>(null)
   const [petName, setPetName] = useState("Companion")
+  const [registerUsername, setRegisterUsername] = useState("")
   const reduceMotion = useReducedMotion()
   const [companion, setCompanion] = useState<CompanionSnapshot>({ hatched: false })
   const hasHatched = companion.hatched === true
 
-  const mintSimulate = useSimulateContract({
-    address: (localNftAddress ?? zeroAddress) as `0x${string}`,
-    abi: localNftMintToAbi,
-    functionName: "mint",
-    args: [(address ?? zeroAddress) as `0x${string}`],
+  const resolvedRegisterName = useMemo(() => {
+    if (!address || !profileRegistryAddress) {
+      return ""
+    }
+    const s = sanitizeProfileUsername(registerUsername)
+    return s.length > 0 ? s : defaultProfileUsernameFromAddress(address)
+  }, [address, registerUsername])
+
+  /** Offline / demo hatch: blank field → same deterministic default as on-chain registration. */
+  const offlineRevealPetName = useMemo(() => {
+    const s = sanitizeProfileUsername(registerUsername)
+    if (s.length > 0) {
+      return s
+    }
+    if (address) {
+      return defaultProfileUsernameFromAddress(address)
+    }
+    return "user"
+  }, [registerUsername, address])
+
+  const nameLookupEnabled =
+    profileRegisterOnchain &&
+    Boolean(profileRegistryAddress && address) &&
+    resolvedRegisterName.length >= 1 &&
+    chainId === LOCAL_CHAIN.id &&
+    isConnected &&
+    !hasHatched &&
+    !hasOnchainProfile
+
+  const {
+    data: usernameOwnerWallet,
+    status: usernameLookupStatus,
+    error: usernameLookupError,
+  } = useReadContract({
+    address: (profileRegistryAddress ?? zeroAddress) as `0x${string}`,
+    abi: profileRegistryAbi,
+    functionName: "usernameToWallet",
+    args: [resolvedRegisterName],
+    chainId: LOCAL_CHAIN.id,
+    query: { enabled: nameLookupEnabled },
+  })
+
+  const usernameTaken =
+    nameLookupEnabled &&
+    usernameLookupStatus === "success" &&
+    usernameOwnerWallet !== undefined &&
+    usernameOwnerWallet !== zeroAddress
+
+  const registerNameSimulate = useSimulateContract({
+    address: (profileRegistryAddress ?? zeroAddress) as `0x${string}`,
+    abi: profileRegistryAbi,
+    functionName: "registerName",
+    args: [resolvedRegisterName],
     chainId: LOCAL_CHAIN.id,
     query: {
       enabled:
-        nftMintOnchain &&
-        Boolean(localNftAddress && address) &&
+        profileRegisterOnchain &&
+        Boolean(profileRegistryAddress && address) &&
+        resolvedRegisterName.length >= 1 &&
         chainId === LOCAL_CHAIN.id &&
         isConnected &&
-        !hasHatched,
+        !hasHatched &&
+        !hasOnchainProfile,
     },
   })
 
@@ -129,6 +239,57 @@ export function ProfilePage() {
   const skipCardEntranceDelayRef = useRef(false)
   /** Prevents duplicate `onHatchComplete` (e.g. Strict Mode / release + tail race). */
   const hatchCompleteGuardRef = useRef(false)
+  /** Dedupes ProfileRegistry → UI hydration (Strict Mode + refetch). */
+  const lastHydratedProfileKeyRef = useRef("")
+
+  /* eslint-disable react-hooks/set-state-in-effect -- hydrate Unity Pet from ProfileRegistry */
+  useEffect(() => {
+    if (!profileReadEnabled || !profileTuple || !Array.isArray(profileTuple)) {
+      return
+    }
+    const [username, , createdAt] = profileTuple as [
+      string,
+      `0x${string}`,
+      bigint,
+    ]
+    if (!username) {
+      return
+    }
+
+    const dedupeKey = `${username}:${createdAt.toString()}`
+    if (lastHydratedProfileKeyRef.current === dedupeKey) {
+      return
+    }
+    lastHydratedProfileKeyRef.current = dedupeKey
+
+    const { theme, stage } = deterministicCompanionFromSeed(username, createdAt)
+    const stats = deriveUnityPetStatsFromProfile(username, createdAt)
+    const auraTarget = deriveAuraPointsFromCreatedAt(
+      createdAt,
+      TARGET_AURA_POINTS,
+    )
+
+    setPetName(username)
+    skipCardEntranceDelayRef.current = true
+    setCardRevealStarted(true)
+    statsRevealGuardRef.current = true
+    setCompanion({ hatched: true, theme, stage })
+    setCardStats(stats)
+    setAuraPoints(0)
+    auraAnimRef.current?.stop()
+    auraAnimRef.current = animate(0, auraTarget, {
+      type: "spring",
+      stiffness: 36,
+      damping: 13,
+      mass: 1.25,
+      restDelta: 0.35,
+      onUpdate: (latest) =>
+        setAuraPoints(
+          Math.min(TARGET_AURA_POINTS, Math.max(0, Math.round(latest))),
+        ),
+    })
+  }, [profileReadEnabled, profileTuple])
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const assignedAura =
     auraPoints >= TARGET_AURA_POINTS
@@ -154,8 +315,15 @@ export function ProfilePage() {
 
     if (reduceMotion) {
       setCardRevealStarted(true)
-      setCardStats(demoPetStats)
-      setAuraPoints(TARGET_AURA_POINTS)
+      const fromChain =
+        profileRegisterOnchain &&
+        profileReadEnabled &&
+        profileReadStatus === "success" &&
+        onchainUsername.length > 0
+      if (!fromChain) {
+        setCardStats(demoPetStats)
+        setAuraPoints(TARGET_AURA_POINTS)
+      }
       return
     }
 
@@ -168,7 +336,14 @@ export function ProfilePage() {
       setCardRevealStarted(true)
     }, PET_CARD_ENTRANCE_DELAY_MS)
     return () => window.clearTimeout(id)
-  }, [hasHatched, reduceMotion])
+  }, [
+    hasHatched,
+    reduceMotion,
+    profileRegisterOnchain,
+    profileReadEnabled,
+    profileReadStatus,
+    onchainUsername,
+  ])
   /* eslint-enable react-hooks/set-state-in-effect */
 
   useEffect(() => {
@@ -183,6 +358,14 @@ export function ProfilePage() {
     if (isConnected) {
       return
     }
+    setCompanion({ hatched: false })
+    lastHydratedProfileKeyRef.current = ""
+    setPetName("Companion")
+    setRegisterUsername("")
+    setCardStats(zeroPetStats)
+    setAuraPoints(0)
+    setCardRevealStarted(false)
+    statsRevealGuardRef.current = false
     if (mintPhase !== "hatching") {
       return
     }
@@ -193,7 +376,7 @@ export function ProfilePage() {
 
   /* eslint-disable react-hooks/set-state-in-effect -- surface writeContract / receipt failures */
   useEffect(() => {
-    if (mintPhase !== "hatching" || !nftMintOnchain) {
+    if (mintPhase !== "hatching" || !profileRegisterOnchain) {
       return
     }
     if (!mintWriteError) {
@@ -204,10 +387,10 @@ export function ProfilePage() {
       "message" in mintWriteError ? mintWriteError.message : String(mintWriteError),
     )
     resetMintWrite()
-  }, [mintPhase, nftMintOnchain, mintWriteError, resetMintWrite])
+  }, [mintPhase, profileRegisterOnchain, mintWriteError, resetMintWrite])
 
   useEffect(() => {
-    if (mintPhase !== "hatching" || !nftMintOnchain || !mintTxHash) {
+    if (mintPhase !== "hatching" || !profileRegisterOnchain || !mintTxHash) {
       return
     }
     if (mintConfirmPending || !mintReceipt) {
@@ -217,11 +400,11 @@ export function ProfilePage() {
       return
     }
     setMintPhase("idle")
-    setMintError("Mint transaction did not succeed onchain.")
+    setMintError("Onchain transaction did not succeed.")
     resetMintWrite()
   }, [
     mintPhase,
-    nftMintOnchain,
+    profileRegisterOnchain,
     mintTxHash,
     mintConfirmPending,
     mintReceipt,
@@ -238,24 +421,43 @@ export function ProfilePage() {
 
     hatchCompleteGuardRef.current = false
 
-    if (nftMintOnchain) {
+    if (profileRegisterOnchain) {
       if (chainId !== LOCAL_CHAIN.id) {
         switchChain?.({ chainId: LOCAL_CHAIN.id })
         setMintError("Switch to Anvil Local, then tap Mint again.")
         return
       }
-      resetMintWrite()
-      const request = mintSimulate.data?.request
-      if (!request) {
+      if (!address) {
+        return
+      }
+      if (usernameTaken) {
+        setMintError("This name is already taken. Choose another.")
+        return
+      }
+      if (nameLookupEnabled && usernameLookupStatus === "error") {
         setMintError(
-          mintSimulate.isError
-            ? (mintSimulate.error?.message ?? "Mint simulation failed.")
-            : "Still preparing mint — wait a moment and tap Mint again.",
+          usernameLookupError?.message ??
+            "Could not verify name availability. Try again.",
         )
         return
       }
-      // Call write in the same click tick as the wallet prompt (before React re-renders).
-      writeMintNft(request)
+      const nameForTx = resolvedRegisterName
+      if (!nameForTx) {
+        setMintError("Could not resolve a profile name for registration.")
+        return
+      }
+      resetMintWrite()
+      const request = registerNameSimulate.data?.request
+      if (!request) {
+        setMintError(
+          registerNameSimulate.isError
+            ? (registerNameSimulate.error?.message ??
+                "Profile registration simulation failed.")
+            : "Still preparing registration — wait a moment and tap Mint again.",
+        )
+        return
+      }
+      writeOnchainTx(request)
       setMintPhase("hatching")
       return
     }
@@ -268,7 +470,28 @@ export function ProfilePage() {
       return
     }
     hatchCompleteGuardRef.current = true
-    const rolled = rollRandomHatchedCompanion()
+    if (profileRegistryAddress) {
+      console.log(
+        "[univision] Profile registered — registry:",
+        profileRegistryAddress,
+        "name:",
+        resolvedRegisterName,
+        "tx:",
+        mintTxHash,
+      )
+    }
+    if (profileRegisterOnchain) {
+      setPetName(resolvedRegisterName)
+    } else {
+      setPetName(offlineRevealPetName)
+    }
+    const nowCreated = BigInt(Math.floor(Date.now() / 1000))
+    const rolled = profileRegisterOnchain
+      ? deterministicCompanionFromSeed(
+          resolvedRegisterName || petName,
+          nowCreated,
+        )
+      : rollRandomHatchedCompanion()
     skipCardEntranceDelayRef.current = true
     setCardRevealStarted(true)
     setCompanion({ hatched: true, theme: rolled.theme, stage: rolled.stage })
@@ -278,16 +501,39 @@ export function ProfilePage() {
     statsRevealGuardRef.current = false
     resetMintWrite()
     setMintError(null)
+    if (profileRegisterOnchain) {
+      void refetchPrimaryWallet()
+      void refetchProfileTuple()
+    }
   }
 
+  /** Lookup free + simulation succeeded — required before Mint (on-chain path). */
+  const onchainNameValidAndAvailable =
+    nameLookupEnabled &&
+    usernameLookupStatus === "success" &&
+    usernameOwnerWallet !== undefined &&
+    usernameOwnerWallet === zeroAddress &&
+    Boolean(registerNameSimulate.data?.request) &&
+    !registerNameSimulate.isError
+
   const mintPrepPending =
-    nftMintOnchain &&
+    profileRegisterOnchain &&
     isConnected &&
     chainId === LOCAL_CHAIN.id &&
     mintPhase === "idle" &&
-    !mintSimulate.isError &&
-    !mintSimulate.data?.request &&
-    (mintSimulate.isPending || mintSimulate.isFetching)
+    !registerNameSimulate.isError &&
+    !registerNameSimulate.data?.request &&
+    (registerNameSimulate.isPending ||
+      registerNameSimulate.isFetching ||
+      (nameLookupEnabled && usernameLookupStatus === "pending"))
+
+  const mintActionDisabled =
+    isConnected &&
+    (mintPhase === "hatching" ||
+      mintPrepPending ||
+      (profileRegisterOnchain &&
+        mintPhase === "idle" &&
+        !onchainNameValidAndAvailable))
 
   return (
     <main className="fixed inset-0 h-svh w-full overflow-hidden bg-[#0D0D0E] text-white">
@@ -300,7 +546,9 @@ export function ProfilePage() {
         <ProfileWalletMenu />
       </div>
 
-      {isFakeUniConfigured() || isLocalNftConfigured() ? (
+      {isFakeUniConfigured() ||
+      isLocalNftConfigured() ||
+      isProfileRegistryConfigured() ? (
         <div className="pointer-events-none absolute bottom-6 left-4 z-20">
           <LocalChainDevPanel />
         </div>
@@ -342,17 +590,93 @@ export function ProfilePage() {
                 }`}
               >
                 {mintPhase === "hatching"
-                  ? nftMintOnchain
+                  ? profileRegisterOnchain
                     ? mintWritePending
-                      ? "Confirm the mint in your wallet…"
+                      ? "Confirm profile registration in your wallet…"
                       : mintConfirmPending
-                        ? "Minting onchain — hatching your companion…"
+                        ? "Registering onchain — hatching your companion…"
                         : "Hatching your companion…"
                     : "Hatching your companion…"
                   : isConnected
-                    ? "Reveal your Unity Pet"
+                    ? profileRegisterOnchain
+                      ? "Choose an onchain profile name. We check it is available before you register and reveal your Unity Pet."
+                      : "Name your companion, then mint to reveal your Unity Pet."
                     : "Connect your wallet to mint and reveal your Unity Pet."}
               </p>
+              {isConnected && mintPhase === "idle" ? (
+                <label className="block w-full space-y-1.5 text-left">
+                  <span
+                    className={`text-[0.65rem] font-medium uppercase tracking-[0.14em] ${
+                      isDark ? "text-white/55" : "text-slate-700/80"
+                    }`}
+                  >
+                    {profileRegisterOnchain
+                      ? `Onchain name (a–z, 0–9, max ${PROFILE_USERNAME_MAX_LEN})`
+                      : "Pet name (a–z, 0–9)"}
+                  </span>
+                  <input
+                    className={cn(
+                      "w-full rounded-xl border border-white/25 bg-white/[0.08] px-3 py-2 text-sm text-foreground outline-none",
+                      "placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-white/25",
+                      "dark:border-white/15 dark:bg-black/[0.2]",
+                      profileRegisterOnchain &&
+                        usernameTaken &&
+                        "border-red-400/55 focus-visible:ring-red-400/30 dark:border-red-400/40",
+                    )}
+                    maxLength={PROFILE_USERNAME_MAX_LEN}
+                    placeholder="Name"
+                    type="text"
+                    value={registerUsername}
+                    onChange={(e) => setRegisterUsername(e.target.value)}
+                  />
+                  {profileRegisterOnchain ? (
+                    <div className="space-y-1">
+                      {nameLookupEnabled &&
+                      usernameLookupStatus === "pending" ? (
+                        <p
+                          className={`text-[0.7rem] leading-snug ${
+                            isDark ? "text-white/55" : "text-slate-600/90"
+                          }`}
+                        >
+                          Checking if this name is available…
+                        </p>
+                      ) : null}
+                      {usernameTaken ? (
+                        <p
+                          className={`text-[0.7rem] leading-snug ${
+                            isDark ? "text-red-300/90" : "text-red-700/90"
+                          }`}
+                        >
+                          This name is already taken. Choose another.
+                        </p>
+                      ) : null}
+                      {nameLookupEnabled &&
+                      usernameLookupStatus === "error" &&
+                      !usernameTaken ? (
+                        <p
+                          className={`text-[0.7rem] leading-snug ${
+                            isDark ? "text-red-300/90" : "text-red-700/90"
+                          }`}
+                        >
+                          {usernameLookupError?.message ??
+                            "Could not verify this name. Try adjusting it."}
+                        </p>
+                      ) : null}
+                      {registerNameSimulate.isError && !usernameTaken ? (
+                        <p
+                          className={`text-[0.7rem] leading-snug ${
+                            isDark ? "text-red-300/90" : "text-red-700/90"
+                          }`}
+                        >
+                          {registerNameSimulate.error?.shortMessage ??
+                            registerNameSimulate.error?.message ??
+                            "Registration cannot proceed with this name."}
+                        </p>
+                      ) : null}
+                    </div>
+                  ) : null}
+                </label>
+              ) : null}
               {mintError ? (
                 <p
                   className={`text-balance text-[0.7rem] leading-snug ${
@@ -368,7 +692,7 @@ export function ProfilePage() {
                   className="w-full min-w-[8rem] border-white/30 bg-white/25 text-foreground shadow-sm backdrop-blur-sm hover:bg-white/35 disabled:opacity-60 dark:border-white/20 dark:bg-white/15 dark:hover:bg-white/25 cursor-pointer"
                   disabled={
                     isConnected
-                      ? mintPhase === "hatching" || mintPrepPending
+                      ? mintActionDisabled
                       : walletBusy || !openConnectModal
                   }
                   size="lg"
@@ -388,8 +712,10 @@ export function ProfilePage() {
                       : "Connect wallet"
                     : mintPrepPending
                       ? "Preparing…"
-                      : mintPhase === "hatching" && nftMintOnchain
-                        ? "Minting…"
+                      : mintPhase === "hatching"
+                        ? profileRegisterOnchain
+                          ? "Registering…"
+                          : "Revealing…"
                         : "Mint"}
                 </Button>
               </div>
@@ -425,7 +751,7 @@ export function ProfilePage() {
               ) : (
                 <HatchingSpriteAnimation
                   className="absolute inset-0 h-full w-full drop-shadow-[0_12px_28px_rgba(0,0,0,0.35)]"
-                  holdUntilRelease={nftMintOnchain}
+                  holdUntilRelease={profileRegisterOnchain}
                   release={mintReceiptSuccess}
                   onComplete={onHatchComplete}
                 />
