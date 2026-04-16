@@ -24,10 +24,12 @@ import {
   type UnityPetTheme,
 } from "@/components/unity-pet/unity-pet-assets"
 import { LocalChainDevPanel } from "@/components/local-chain-dev-panel"
+import { MeadowScene } from "@/components/meadow-scene"
 import { ProfileWalletMenu } from "@/components/profile-wallet-menu"
 import { UnityPetCard } from "@/components/unity-pet/unity-pet-card"
 import type { UnityPetStats } from "@/components/unity-pet/unity-pet-types"
 import { cn } from "@/lib/utils"
+import { useTheme } from "@/components/theme-provider"
 import { Button } from "@/components/ui/button"
 import { profileRegistryAbi } from "@/lib/abis/profile-registry"
 import {
@@ -46,6 +48,7 @@ import {
   deriveAuraPointsFromCreatedAt,
   deriveUnityPetStatsFromProfile,
 } from "@/lib/profile-onchain-stats"
+import { useDocumentTheme } from "@/hooks/use-document-theme"
 
 const demoPetStats: UnityPetStats = {
   researcher: 28,
@@ -85,8 +88,14 @@ type CompanionSnapshot =
   | { hatched: false }
   | { hatched: true; theme: UnityPetTheme; stage: UnityPetStage }
 
+const profileTopBarButtonClass =
+  "pointer-events-auto border-white/25 bg-background/55 text-foreground shadow-lg backdrop-blur-md hover:bg-background/75 dark:border-white/15 dark:bg-background/40"
+
 export function ProfilePage() {
   const { address, isConnected, status } = useAccount()
+  const { setTheme } = useTheme()
+  const resolved = useDocumentTheme()
+  const isDark = resolved === "dark"
   const chainId = useChainId()
   const { switchChain } = useSwitchChain()
   const { openConnectModal } = useConnectModal()
@@ -536,11 +545,10 @@ export function ProfilePage() {
         !onchainNameValidAndAvailable))
 
   return (
-    <main className="fixed inset-0 h-svh w-full overflow-hidden bg-[#0D0D0E] text-white">
-      <div className="pointer-events-none absolute inset-0">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_15%_20%,rgba(255,87,183,0.18),transparent_0,transparent_34%),radial-gradient(circle_at_82%_24%,rgba(255,116,208,0.16),transparent_0,transparent_30%),radial-gradient(circle_at_50%_85%,rgba(255,87,183,0.12),transparent_0,transparent_28%)]" />
-        <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(13,13,14,0.9),rgba(13,13,14,0.72)_22%,rgba(13,13,14,0.58)_58%,rgba(13,13,14,0.88))]" />
-      </div>
+    <main className="fixed inset-0 h-svh w-full overflow-hidden bg-black text-white">
+      <MeadowScene theme={resolved} />
+      {/* Readability over the meadow near the bottom UI — avoid a full-screen wash that hides the canvas */}
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 z-[1] h-40 bg-gradient-to-t from-background/35 to-transparent dark:from-black/45" />
 
       <div className="absolute right-4 top-4 z-20">
         <ProfileWalletMenu />
@@ -554,13 +562,19 @@ export function ProfilePage() {
         </div>
       ) : null}
 
-      <div className="absolute left-4 top-4 z-10">
-        <Button
-          asChild
-          variant="outline"
-          className="pointer-events-auto h-11 gap-2 px-6"
-        >
+      <div className="absolute left-4 top-4 z-10 flex flex-wrap items-center gap-2">
+        <Button asChild size="sm" variant="outline" className={profileTopBarButtonClass}>
           <Link to="/">Back</Link>
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          className={cn(profileTopBarButtonClass, "gap-2")}
+          onClick={() => setTheme(isDark ? "light" : "dark")}
+        >
+          {isDark ? <SunMedium /> : <MoonStar />}
+          {isDark ? "Daylight" : "Night sky"}
         </Button>
       </div>
 
@@ -793,6 +807,12 @@ export function ProfilePage() {
                 if (reduceMotion || !cardRevealStarted) return
                 if (statsRevealGuardRef.current) return
                 statsRevealGuardRef.current = true
+                // Registry-backed profiles: REP bars + aura come from `getProfile` hydration
+                // (`deriveUnityPetStatsFromProfile` / `deriveAuraPointsFromCreatedAt`). The
+                // entrance animation can finish before that effect runs; demo stats would win.
+                if (profileRegisterOnchain) {
+                  return
+                }
                 setCardStats(demoPetStats)
                 auraAnimRef.current?.stop()
                 auraAnimRef.current = animate(0, TARGET_AURA_POINTS, {
