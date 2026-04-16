@@ -15,7 +15,7 @@ export default function LeaderboardPage() {
   return (
     <main className="relative min-h-svh bg-[#0D0D0E] text-white">
       <div className="pointer-events-none fixed inset-0">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_15%_20%,rgba(252,114,255,0.18),transparent_0,transparent_34%),radial-gradient(circle_at_82%_24%,rgba(255,155,241,0.16),transparent_0,transparent_30%),radial-gradient(circle_at_50%_85%,rgba(252,114,255,0.12),transparent_0,transparent_28%)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_15%_20%,rgba(255,87,183,0.18),transparent_0,transparent_34%),radial-gradient(circle_at_82%_24%,rgba(255,116,208,0.16),transparent_0,transparent_30%),radial-gradient(circle_at_50%_85%,rgba(255,87,183,0.12),transparent_0,transparent_28%)]" />
         <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(13,13,14,0.9),rgba(13,13,14,0.72)_22%,rgba(13,13,14,0.58)_58%,rgba(13,13,14,0.88))]" />
       </div>
 

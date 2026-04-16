@@ -173,10 +173,10 @@ function Home() {
   return (
     <main className="relative min-h-svh bg-[#0D0D0E] text-white">
       <div className="fixed inset-0">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_15%_20%,rgba(252,114,255,0.18),transparent_0,transparent_34%),radial-gradient(circle_at_82%_24%,rgba(255,155,241,0.16),transparent_0,transparent_30%),radial-gradient(circle_at_50%_85%,rgba(252,114,255,0.12),transparent_0,transparent_28%)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_15%_20%,rgba(255,87,183,0.18),transparent_0,transparent_34%),radial-gradient(circle_at_82%_24%,rgba(255,116,208,0.16),transparent_0,transparent_30%),radial-gradient(circle_at_50%_85%,rgba(255,87,183,0.12),transparent_0,transparent_28%)]" />
         <Suspense
           fallback={
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(252,114,255,0.18),transparent_35%),radial-gradient(circle_at_80%_30%,rgba(255,170,246,0.12),transparent_30%)]" />
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(255,87,183,0.18),transparent_35%),radial-gradient(circle_at_80%_30%,rgba(255,116,208,0.12),transparent_30%)]" />
           }
         >
           <div className="absolute inset-0">
@@ -265,7 +265,7 @@ function Home() {
                   key={item.title}
                   className="rounded-none border border-white/8 bg-white/4 p-6"
                 >
-                  <p className="text-sm font-medium text-[#FC72FF]">{item.title}</p>
+                  <p className="text-sm font-medium text-[#FF57B7]">{item.title}</p>
                   <p className="mt-3 text-sm leading-7 text-white/62">{item.body}</p>
                 </ScrollRevealItem>
               ))}
@@ -277,7 +277,7 @@ function Home() {
           id="why-it-matters"
           className="mx-auto max-w-7xl px-6 py-16 md:px-8 md:py-24"
         >
-          <ScrollReveal className="overflow-hidden rounded-none border border-white/10 bg-[linear-gradient(180deg,rgba(252,114,255,0.12),rgba(13,13,14,0.52))] p-8 backdrop-blur-xl md:p-10">
+          <ScrollReveal className="overflow-hidden rounded-none border border-white/10 bg-[linear-gradient(180deg,rgba(255,87,183,0.12),rgba(13,13,14,0.52))] p-8 backdrop-blur-xl md:p-10">
             <div className="grid gap-8 lg:grid-cols-[0.95fr_1.05fr] lg:items-end">
               <ScrollRevealGroup>
                 <ScrollRevealItem className="text-xs uppercase tracking-[0.24em] text-white/50">
@@ -330,7 +330,7 @@ function Home() {
                   key={category.name}
                   className="rounded-none border border-white/8 bg-white/4 p-6"
                 >
-                  <div className="flex items-center gap-3 text-[#FC72FF]">
+                  <div className="flex items-center gap-3 text-[#FF57B7]">
                     <category.icon className="size-5 shrink-0" />
                     <p className="text-sm font-medium">{category.name}</p>
                   </div>
@@ -373,7 +373,7 @@ function Home() {
           id="get-started"
           className="mx-auto max-w-7xl px-6 py-16 md:px-8 md:py-24"
         >
-          <ScrollReveal className="overflow-hidden rounded-none border border-white/10 bg-[linear-gradient(180deg,rgba(252,114,255,0.14),rgba(13,13,14,0.5))] p-8 shadow-[0_24px_80px_rgba(0,0,0,0.32)] backdrop-blur-xl md:p-10">
+          <ScrollReveal className="overflow-hidden rounded-none border border-white/10 bg-[linear-gradient(180deg,rgba(255,87,183,0.14),rgba(13,13,14,0.5))] p-8 shadow-[0_24px_80px_rgba(0,0,0,0.32)] backdrop-blur-xl md:p-10">
             <div className="grid gap-8 lg:grid-cols-[1fr_auto] lg:items-end">
               <ScrollRevealGroup className="max-w-3xl">
                 <ScrollRevealItem className="text-xs uppercase tracking-[0.24em] text-white/50">

@@ -88,7 +88,7 @@ export function HeroOverlay({ onExploreGraph: _onExploreGraph }: HeroOverlayProp
             </span>
 
             <h1
-              className="inline-flex max-w-[92vw] items-baseline whitespace-nowrap text-[clamp(2rem,8vw,6rem)] tracking-[0.01em] text-white drop-shadow-[0_0_36px_rgba(252,114,255,0.3)]"
+              className="inline-flex max-w-[92vw] items-baseline whitespace-nowrap text-[clamp(2rem,8vw,6rem)] tracking-[0.01em] text-white drop-shadow-[0_0_36px_rgba(255,87,183,0.3)]"
               style={{ fontFamily: '"Audiowide", monospace' }}
             >
               <motion.span
@@ -97,7 +97,7 @@ export function HeroOverlay({ onExploreGraph: _onExploreGraph }: HeroOverlayProp
                   opacity: isUnity ? 1 : 0.84,
                   textShadow: isUnity
                     ? "0 0 16px rgba(255,255,255,0.75), 0 0 36px rgba(255,255,255,0.58), 0 0 68px rgba(255,255,255,0.32)"
-                    : "0 0 36px rgba(252,114,255,0.3)",
+                    : "0 0 36px rgba(255,87,183,0.3)",
                 }}
                 transition={{
                   duration: 0.45,
@@ -128,7 +128,7 @@ export function HeroOverlay({ onExploreGraph: _onExploreGraph }: HeroOverlayProp
                   opacity: isUnity ? 1 : 0.84,
                   textShadow: isUnity
                     ? "0 0 16px rgba(255,255,255,0.75), 0 0 36px rgba(255,255,255,0.58), 0 0 68px rgba(255,255,255,0.32)"
-                    : "0 0 36px rgba(252,114,255,0.3)",
+                    : "0 0 36px rgba(255,87,183,0.3)",
                 }}
                 transition={{
                   duration: 0.45,

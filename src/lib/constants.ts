@@ -9,13 +9,16 @@ export const PARTICIPANT_TYPES = [
 
 export type ParticipantType = (typeof PARTICIPANT_TYPES)[number]
 
+export const BRAND_PINK = "#FF57B7"
+export const BRAND_PINK_SOFT = "#FF74D0"
+
 export const NODE_COLORS: Record<ParticipantType, string> = {
-  holder: "#FC72FF",
-  lp: "#F865F5",
-  trader: "#FF79EE",
-  developer: "#FF8AE7",
-  researcher: "#FF9FEF",
-  governor: "#FFC7F7",
+  holder: BRAND_PINK,
+  lp: "#FF3BCD",
+  trader: "#FF57B7",
+  developer: "#FF74D0",
+  researcher: "#FF88D8",
+  governor: "#FFADD8",
 }
 
 export const PARTICLE_PINK_COLORS = [

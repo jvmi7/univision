@@ -137,7 +137,9 @@ function sampleShapePoints(
   const points: THREE.Vector2[] = []
 
   for (let index = 0; index < count; index += 1) {
-    const targetArea = random() * totalArea
+    // Stratify the sampling across the total triangle area so the logo reads
+    // more cohesively on first render instead of clustering from pure randomness.
+    const targetArea = ((index + random() * 0.35) / count) * totalArea
     const triangle =
       triangles.find((entry) => entry.cumulativeArea >= targetArea) ??
       triangles[triangles.length - 1]
@@ -197,7 +199,7 @@ export function generateLogoTargets(nodeCount: number) {
     .filter((entry) => entry.totalArea > 0 && entry.triangles.length > 0)
   )
 
-  const directCount = Math.floor(nodeCount * 0.96)
+  const directCount = Math.floor(nodeCount * 0.985)
   const haloCount = nodeCount - directCount
   const distributedCounts = distributeCounts(
     directCount,
@@ -226,13 +228,13 @@ export function generateLogoTargets(nodeCount: number) {
     const normalizedX = (point.x - center.x) * scale
     const normalizedY = -(point.y - center.y) * scale
     const normalizedZ =
-      (random() - 0.5) * 0.45 +
-      Math.sin(index * 0.41) * 0.14 +
-      Math.cos(index * 0.17) * 0.08
+      (random() - 0.5) * 0.18 +
+      Math.sin(index * 0.41) * 0.06 +
+      Math.cos(index * 0.17) * 0.04
 
     return {
       position: new THREE.Vector3(normalizedX, normalizedY, normalizedZ),
-      influence: 0.998,
+      influence: 0.999,
     }
   })
 
@@ -241,7 +243,7 @@ export function generateLogoTargets(nodeCount: number) {
       directTargets[Math.floor(random() * directTargets.length)]?.position ??
       new THREE.Vector3()
 
-    const radius = 0.25 + random() * 1
+    const radius = 0.12 + random() * 0.48
     const theta = random() * Math.PI * 2
     const phi = Math.acos(2 * random() - 1)
     const sinPhi = Math.sin(phi)
@@ -250,9 +252,9 @@ export function generateLogoTargets(nodeCount: number) {
       position: new THREE.Vector3(
         anchor.x + radius * sinPhi * Math.cos(theta),
         anchor.y + radius * sinPhi * Math.sin(theta),
-        anchor.z + radius * Math.cos(phi) * 0.2
+        anchor.z + radius * Math.cos(phi) * 0.08
       ),
-      influence: 0.94 + random() * 0.04,
+      influence: 0.972 + random() * 0.02,
     }
   })
 

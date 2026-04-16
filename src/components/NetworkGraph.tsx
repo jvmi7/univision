@@ -13,6 +13,8 @@ import {
 import * as THREE from "three"
 
 import {
+  BRAND_PINK,
+  BRAND_PINK_SOFT,
   NETWORK_CONFIG,
   PARTICLE_PINK_COLORS,
 } from "@/lib/constants"
@@ -50,7 +52,7 @@ function createNodeMaterial() {
   material.toneMapped = false
   material.depthWrite = false
   material.blending = THREE.AdditiveBlending
-  material.emissive = new THREE.Color("#ff62cd")
+  material.emissive = new THREE.Color(BRAND_PINK_SOFT)
   material.emissiveIntensity = 0.72
 
   material.onBeforeCompile = (shader) => {
@@ -555,10 +557,10 @@ function NetworkScene({
     <>
       <fog attach="fog" args={["#0D0D0E", 48, 118]} />
       <ambientLight intensity={0.18} />
-      <hemisphereLight color="#ffb2fb" groundColor="#130610" intensity={0.22} />
-      <pointLight color="#FC72FF" intensity={260} decay={2} distance={150} position={[0, 8, 28]} />
-      <pointLight color="#ff9df3" intensity={150} decay={2} distance={112} position={[-22, -18, -18]} />
-      <pointLight color="#ffc2f7" intensity={100} decay={2} distance={98} position={[18, 16, -12]} />
+      <hemisphereLight color="#ffb7e2" groundColor="#130610" intensity={0.22} />
+      <pointLight color={BRAND_PINK} intensity={260} decay={2} distance={150} position={[0, 8, 28]} />
+      <pointLight color={BRAND_PINK_SOFT} intensity={150} decay={2} distance={112} position={[-22, -18, -18]} />
+      <pointLight color="#ffb5df" intensity={100} decay={2} distance={98} position={[18, 16, -12]} />
 
       <instancedMesh
         ref={nodesRef}

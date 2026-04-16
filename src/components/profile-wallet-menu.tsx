@@ -215,7 +215,7 @@ export function ProfileWalletMenu({ className }: { className?: string }) {
               id="unity-link-wallet"
               autoComplete="off"
               className={cn(
-                "w-full rounded-none border border-white/15 bg-black/30 px-3 py-2 font-mono text-sm outline-none ring-0 transition-[border-color,box-shadow] focus-visible:border-[#FC72FF]/55 focus-visible:ring-2 focus-visible:ring-[#FC72FF]/25",
+                "w-full rounded-none border border-white/15 bg-black/30 px-3 py-2 font-mono text-sm outline-none ring-0 transition-[border-color,box-shadow] focus-visible:border-[#FF57B7]/55 focus-visible:ring-2 focus-visible:ring-[#FF57B7]/25",
                 isDark ? "text-white/90 placeholder:text-white/35" : "text-foreground",
               )}
               placeholder="0x…"
@@ -235,7 +235,7 @@ export function ProfileWalletMenu({ className }: { className?: string }) {
             {linkError ? <p className="text-sm text-destructive">{linkError}</p> : null}
             <div className="flex flex-wrap items-center gap-2 pt-1">
               <Button
-                className="border-[#FC72FF]/40 bg-[#FC72FF]/12 text-white hover:!bg-[#FF8AF4]/18"
+                className="border-[#FF57B7]/40 bg-[#FF57B7]/12 text-white hover:!bg-[#FF74D0]/18"
                 type="button"
                 variant="brand"
                 onClick={onSubmitLink}

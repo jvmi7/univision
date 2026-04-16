@@ -3,9 +3,10 @@ import { type ReactNode, useMemo } from "react"
 import { WagmiProvider } from "wagmi"
 
 import { useDocumentTheme } from "@/hooks/use-document-theme"
+import { BRAND_PINK } from "@/lib/constants"
 import { wagmiConfig } from "@/lib/wagmi"
 
-const accent = "#FC72FF"
+const accent = BRAND_PINK
 const accentForeground = "#0a0a0b"
 
 export function Web3Provider({ children }: { children: ReactNode }) {
