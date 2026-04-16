@@ -20,7 +20,7 @@ export function isAnvilChainEnabledInConfig(): boolean {
 export const LOCAL_CHAIN = anvilLocalhost
 
 export const fakeUniAddress = parseAddress(
-  import.meta.env.VITE_FAKE_UNI_ADDRESS,
+  "0x700b6A60ce7EaaEA56F065753d8dcB9653dbAD35"
 )
 
 export const localNftAddress = parseAddress(

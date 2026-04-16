@@ -147,9 +147,6 @@ export function LocalChainDevPanel({ className }: { className?: string }) {
             </code>
             ). Node at <code className="rounded bg-black/20 px-1 py-0.5">127.0.0.1:8545</code>.
             Optional{" "}
-            <code className="rounded bg-black/20 px-1 py-0.5 dark:bg-white/10">
-              VITE_FAKE_UNI_ADDRESS
-            </code>{" "}
             /{" "}
             <code className="rounded bg-black/20 px-1 py-0.5 dark:bg-white/10">
               VITE_LOCAL_NFT_ADDRESS
