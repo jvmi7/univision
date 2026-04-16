@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils"
 
 import { AuraPointsBadge } from "./aura-points-badge"
 import { MEADOW_STAT_PRESETS } from "./meadow-stat-presets"
-import { PetStatBar } from "./pet-stat-bar"
+import { PetStatBar, type PetStatFillLayout } from "./pet-stat-bar"
 import {
   clampAuraPoints,
   UNITY_PET_DEFAULT_STAT_LABELS,
@@ -14,6 +14,7 @@ import {
   type UnityPetStatKey,
   type UnityPetStats,
 } from "./unity-pet-types"
+import { Link } from "react-router-dom"
 
 const MAX_PET_NAME_LENGTH = 28
 
@@ -32,6 +33,16 @@ export type UnityPetCardProps = {
   size?: "default" | "large"
   /** Meadow uses the glass track + white fill; default uses white fill with a simpler track. */
   statPalette?: "meadow" | "default"
+  /** How stat bar fills animate when `value` changes (e.g. intro from 0). */
+  statFillLayout?: PetStatFillLayout
+  /**
+   * When set, the “unassigned of total” copy uses these values instead of `auraPoints` /
+   * `assignedReputationAura` (e.g. keep copy fixed while the aura badge still animates).
+   */
+  reputationSummaryNumbers?: {
+    totalAura: number
+    assignedReputationAura: number
+  }
   className?: string
 }
 
@@ -47,15 +58,27 @@ export function UnityPetCard({
   statLabels,
   size = "default",
   statPalette = "meadow",
+  statFillLayout = "css",
+  reputationSummaryNumbers,
   className,
 }: UnityPetCardProps) {
   const isLarge = size === "large"
   const useMeadowStats = statPalette === "meadow"
   const totalAura = clampAuraPoints(auraPoints)
-  const assignedAura = Math.min(
-    totalAura,
-    Math.max(0, Math.round(assignedReputationAura)),
+  const repLineTotal = clampAuraPoints(
+    reputationSummaryNumbers?.totalAura ?? totalAura,
   )
+  const repLineAssigned = Math.min(
+    repLineTotal,
+    Math.max(
+      0,
+      Math.round(
+        reputationSummaryNumbers?.assignedReputationAura ??
+          assignedReputationAura,
+      ),
+    ),
+  )
+  const repLineUnassigned = repLineTotal - repLineAssigned
   const [isEditing, setIsEditing] = useState(false)
   const [draft, setDraft] = useState(petName)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -99,17 +122,19 @@ export function UnityPetCard({
   return (
     <div
       className={cn(
-        "flex border border-border bg-card text-card-foreground shadow-sm",
+        "flex max-h-[90vh] min-h-0 w-full flex-col overflow-y-auto overscroll-contain border border-border bg-card text-card-foreground shadow-sm sm:flex-row sm:items-stretch",
         isLarge
-          ? "gap-6 rounded-2xl p-6 sm:gap-8 sm:p-8"
+          ? "gap-7 rounded-2xl p-7 sm:gap-9 sm:p-9 md:gap-10 md:p-10"
           : "gap-4 rounded-xl p-4",
         className,
       )}
     >
       <div
         className={cn(
-          "flex shrink-0 flex-col items-center",
-          isLarge ? "w-40 gap-3 sm:w-48 sm:gap-4 md:w-56" : "w-[7.5rem] gap-2",
+          "flex w-full shrink-0 flex-col items-center",
+          isLarge
+            ? "gap-3.5 sm:w-52 sm:gap-4 md:w-64"
+            : "gap-2 sm:w-[7.5rem]",
         )}
       >
         <div
@@ -124,10 +149,11 @@ export function UnityPetCard({
             className={cn(
               "absolute z-10",
               isLarge
-                ? "right-1.5 top-1.5 sm:right-2 sm:top-2"
-                : "right-1 top-1",
+                ? "right-0 top-0 sm:right-2 sm:top-2"
+                : "right-0 top-0",
             )}
             points={auraPoints}
+            size={isLarge ? "large" : "default"}
           />
           <img
             alt={imageAlt}
@@ -145,7 +171,7 @@ export function UnityPetCard({
         <div
           className={cn(
             "flex w-full min-w-0 items-center justify-center gap-1",
-            isLarge ? "text-base sm:text-lg" : "text-xs",
+            isLarge ? "text-lg sm:text-xl" : "text-xs",
           )}
         >
           {isEditing ? (
@@ -154,7 +180,7 @@ export function UnityPetCard({
               aria-label="Companion name"
               className={cn(
                 "min-w-0 flex-1 rounded-md border border-white/30 bg-background/60 px-1.5 py-0.5 text-center font-semibold text-foreground outline-none focus-visible:ring-2 focus-visible:ring-white/40 dark:border-white/20 dark:bg-black/30",
-                isLarge ? "text-base sm:text-lg" : "text-xs",
+                isLarge ? "text-lg sm:text-xl" : "text-xs",
               )}
               maxLength={MAX_PET_NAME_LENGTH}
               type="text"
@@ -194,7 +220,7 @@ export function UnityPetCard({
                 }}
               >
                 <Pencil
-                  className={cn(isLarge ? "size-3.5 sm:size-4" : "size-3")}
+                  className={cn(isLarge ? "size-4 sm:size-5" : "size-3")}
                   strokeWidth={2}
                 />
               </button>
@@ -211,37 +237,42 @@ export function UnityPetCard({
           <p
             className={cn(
               "text-balance text-center text-black/75 dark:text-white/80",
-              isLarge ? "text-[0.7rem] leading-snug sm:text-xs" : "text-[0.65rem]",
+              isLarge ? "text-xs leading-snug sm:text-sm" : "text-[0.65rem]",
             )}
           >
             <span className="font-semibold tabular-nums text-black dark:text-white">
-              {assignedAura}
+              {repLineUnassigned}
             </span>
             <span className="text-black/70 dark:text-white/70"> of </span>
             <span className="font-semibold tabular-nums text-black dark:text-white">
-              {totalAura}
+              {repLineTotal}
             </span>
             <span className="text-black/70 dark:text-white/70">
               {" "}
-              aura assigned to reputation
+              reputation points unassigned
             </span>
           </p>
           <Button
-            className="w-full border-white/30 bg-white/20 text-foreground shadow-sm backdrop-blur-sm hover:bg-white/30 dark:border-white/20 dark:bg-white/10 dark:hover:bg-white/15 cursor-pointer"
-            size={isLarge ? "sm" : "xs"}
+            className={cn(
+              "w-full border-white/30 bg-white/20 text-foreground shadow-sm backdrop-blur-sm hover:bg-white/30 dark:border-white/20 dark:bg-white/10 dark:hover:bg-white/15 cursor-pointer",
+              isLarge && "text-base",
+            )}
+            size={isLarge ? "lg" : "xs"}
             type="button"
             variant="outline"
             onClick={onAssignReputation}
           >
-            Assign reputation
+            <Link to="/leaderboard">
+            Explore leaderboard
+            </Link>
           </Button>
         </div>
       </div>
 
       <div
         className={cn(
-          "flex min-w-0 flex-1 flex-col justify-center",
-          isLarge ? "gap-3 sm:gap-4" : "gap-2.5",
+          "flex w-full min-w-0 flex-1 flex-col justify-center",
+          isLarge ? "gap-3.5 sm:gap-5" : "gap-2.5",
         )}
       >
         {UNITY_PET_STAT_KEYS.map((key) => {
@@ -250,6 +281,7 @@ export function UnityPetCard({
             <PetStatBar
               key={key}
               fillClassName={meadow.fill}
+              fillLayout={statFillLayout}
               label={statLabels?.[key] ?? UNITY_PET_DEFAULT_STAT_LABELS[key]}
               size={isLarge ? "large" : "default"}
               trackClassName={useMeadowStats ? meadow.track : undefined}
