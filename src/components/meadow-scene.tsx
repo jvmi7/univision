@@ -434,10 +434,7 @@ function createCloudLayer(
 const STAR_HOVER_RADIUS_NDC = 0.095
 /** Exponential approach rate (higher = snappier toward hover target) */
 const STAR_HOVER_SMOOTH_RATE = 3.1
-/** Plain circular stars: subtle grow + brighten on hover */
-const STAR_HOVER_CIRCLE_SCALE_MAX = 1.34
-const STAR_HOVER_CIRCLE_BRIGHT_STRENGTH = 0.95
-/** Twinkle sparkles: strong grow + brighten on hover */
+/** Sparkle stars: strong grow + brighten on hover */
 const STAR_HOVER_TWINKLE_SCALE_MAX = 5.1
 const STAR_HOVER_TWINKLE_BRIGHT_STRENGTH = 2.7
 
@@ -477,13 +474,14 @@ function updateStarFieldHoverProximity(
 }
 
 function createStarField(count: number, spreadW: number, spreadH: number, z: number): THREE.InstancedMesh {
-  const geo = new THREE.PlaneGeometry(0.09, 0.09)
+  /* Slightly smaller quads than `createSkyStarTwinkleField` so a dense field stays readable */
+  const geo = new THREE.PlaneGeometry(0.095, 0.095)
   const phases = new Float32Array(count)
   const scales = new Float32Array(count)
   const hoverBoost = new Float32Array(count)
   for (let i = 0; i < count; i++) {
     phases[i] = Math.random() * Math.PI * 2
-    scales[i] = 0.72 + Math.random() * 1.45
+    scales[i] = 0.62 + Math.random() * 1.25
     hoverBoost[i] = 0
   }
   geo.setAttribute("aPhase", new THREE.InstancedBufferAttribute(phases, 1))
@@ -495,8 +493,8 @@ function createStarField(count: number, spreadW: number, spreadH: number, z: num
     uniforms: {
       uTime: { value: 0 },
       uColor: { value: new THREE.Color("#dde8ff") },
-      uHoverBoostStrength: { value: STAR_HOVER_CIRCLE_BRIGHT_STRENGTH },
-      uHoverScaleMax: { value: STAR_HOVER_CIRCLE_SCALE_MAX },
+      uHoverBoostStrength: { value: STAR_HOVER_TWINKLE_BRIGHT_STRENGTH },
+      uHoverScaleMax: { value: STAR_HOVER_TWINKLE_SCALE_MAX },
     },
     vertexShader: `
       attribute float aPhase;
@@ -509,8 +507,8 @@ function createStarField(count: number, spreadW: number, spreadH: number, z: num
         vPhase = aPhase;
         vHoverBoost = aHoverBoost;
         vUv = uv;
-        float s = mix(1.0, uHoverScaleMax, vHoverBoost);
-        gl_Position = projectionMatrix * modelViewMatrix * instanceMatrix * vec4(position * s, 1.0);
+        float sc = mix(1.0, uHoverScaleMax, vHoverBoost);
+        gl_Position = projectionMatrix * modelViewMatrix * instanceMatrix * vec4(position * sc, 1.0);
       }
     `,
     fragmentShader: `
@@ -521,13 +519,20 @@ function createStarField(count: number, spreadW: number, spreadH: number, z: num
       varying float vHoverBoost;
       varying vec2 vUv;
       void main() {
-        vec2 c = vUv - 0.5;
-        /* Readable average with gentler peaks so the field doesn’t read “solid” */
-        float tw = 0.7 + 0.3 * sin(uTime * 1.4 + vPhase);
-        float d = length(c) * 2.05;
-        float a = smoothstep(1.0, 0.0, d) * tw * 0.72;
+        vec2 p = (vUv - 0.5) * 2.0;
+        float r = length(p);
+        float th = atan(p.y, p.x);
+        float spin = uTime * 0.22 + vPhase * 0.12;
+        float c = cos(2.0 * (th + spin));
+        float s = sin(2.0 * (th + spin));
+        float rays = pow(abs(c), 9.0) + pow(abs(s), 9.0);
+        float core = exp(-r * r * 32.0);
+        float limb = smoothstep(1.02, 0.06, r);
+        float shape = core * 0.5 + rays * limb * 1.05;
+        float tw = 0.62 + 0.38 * sin(uTime * 1.85 + vPhase);
+        float a = min(shape * tw * 0.48, 0.58);
         float boost = 1.0 + vHoverBoost * uHoverBoostStrength;
-        gl_FragColor = vec4(uColor * (1.04 * boost), min(a * boost, 0.94));
+        gl_FragColor = vec4(uColor * (1.05 * boost), min(a * boost, 0.9));
       }
     `,
   })
