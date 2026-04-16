@@ -1,10 +1,11 @@
+import { useParams } from "react-router-dom"
+
 import { ProfilePage } from "@/pages/profile-page"
-import { Web3Provider } from "@/providers/web3-provider"
 
 export default function ProfileExperience() {
-  return (
-    <Web3Provider>
-      <ProfilePage />
-    </Web3Provider>
-  )
+  const { identifier } = useParams<{ identifier: string }>()
+
+  // `Web3Provider` is hoisted to `main.tsx` so wallet/RainbowKit context is
+  // available on every route (leaderboard, home, profile), not just here.
+  return <ProfilePage identifier={identifier} />
 }

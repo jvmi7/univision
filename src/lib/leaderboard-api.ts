@@ -66,3 +66,33 @@ export function getAuraLeaderboard(params: LeaderboardParams = {}) {
 export function getRepLeaderboard(params: RepLeaderboardParams = {}) {
   return fetchLeaderboard<RepLeaderboardEntry>("/api/leaderboard/rep", params)
 }
+
+/** Boards the leaderboard page can render. */
+export type LeaderboardKind =
+  | "aura"
+  | "research"
+  | "builder"
+  | "trader"
+  | "liquidity"
+  | "governance"
+  | "community"
+
+export const LEADERBOARD_KINDS = [
+  "aura",
+  "research",
+  "builder",
+  "trader",
+  "liquidity",
+  "governance",
+  "community",
+] as const satisfies readonly LeaderboardKind[]
+
+export const LEADERBOARD_LABELS: Record<LeaderboardKind, string> = {
+  aura: "Aura",
+  research: "Researcher",
+  builder: "Builder",
+  trader: "Trader",
+  liquidity: "Liquidity Provider",
+  governance: "Governance",
+  community: "Community",
+}
