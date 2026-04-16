@@ -1,7 +1,6 @@
 import { useConnectModal } from "@rainbow-me/rainbowkit"
 import { animate, motion, useReducedMotion } from "framer-motion"
 import { useEffect, useRef, useState } from "react"
-import { MoonStar, SunMedium } from "lucide-react"
 import { Link } from "react-router-dom"
 import { zeroAddress } from "viem"
 import {
@@ -13,7 +12,6 @@ import {
   useWriteContract,
 } from "wagmi"
 
-import { MeadowScene } from "@/components/meadow-scene"
 import { HatchingSpriteAnimation } from "@/components/unity-pet/hatching-sprite-animation"
 import {
   getUnityPetPortraitUrl,
@@ -26,9 +24,7 @@ import { LocalChainDevPanel } from "@/components/local-chain-dev-panel"
 import { ProfileWalletMenu } from "@/components/profile-wallet-menu"
 import { UnityPetCard } from "@/components/unity-pet/unity-pet-card"
 import type { UnityPetStats } from "@/components/unity-pet/unity-pet-types"
-import { useDocumentTheme } from "@/hooks/use-document-theme"
 import { cn } from "@/lib/utils"
-import { useTheme } from "@/components/theme-provider"
 import { Button } from "@/components/ui/button"
 import { localNftMintToAbi } from "@/lib/abis/local-dev"
 import {
@@ -101,9 +97,6 @@ export function ProfilePage() {
   })
 
   const [mintError, setMintError] = useState<string | null>(null)
-  const { setTheme } = useTheme()
-  const resolved = useDocumentTheme()
-  const isDark = resolved === "dark"
   const [petName, setPetName] = useState("Companion")
   const reduceMotion = useReducedMotion()
   const [companion, setCompanion] = useState<CompanionSnapshot>({ hatched: false })
@@ -184,14 +177,6 @@ export function ProfilePage() {
       auraAnimRef.current = null
     }
   }, [])
-
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "d" || e.key === "D") setTheme(isDark ? "light" : "dark")
-    }
-    window.addEventListener("keydown", onKey)
-    return () => window.removeEventListener("keydown", onKey)
-  }, [isDark, setTheme])
 
   /* eslint-disable react-hooks/set-state-in-effect -- wallet disconnected mid-hatch */
   useEffect(() => {
@@ -305,10 +290,11 @@ export function ProfilePage() {
     (mintSimulate.isPending || mintSimulate.isFetching)
 
   return (
-    <main className="fixed inset-0 h-svh w-full overflow-hidden bg-black text-foreground">
-      <MeadowScene theme={resolved} />
-
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-36 bg-gradient-to-t from-background/30 to-transparent" />
+    <main className="fixed inset-0 h-svh w-full overflow-hidden bg-[#0D0D0E] text-white">
+      <div className="pointer-events-none absolute inset-0">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_15%_20%,rgba(255,87,183,0.18),transparent_0,transparent_34%),radial-gradient(circle_at_82%_24%,rgba(255,116,208,0.16),transparent_0,transparent_30%),radial-gradient(circle_at_50%_85%,rgba(255,87,183,0.12),transparent_0,transparent_28%)]" />
+        <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(13,13,14,0.9),rgba(13,13,14,0.72)_22%,rgba(13,13,14,0.58)_58%,rgba(13,13,14,0.88))]" />
+      </div>
 
       <div className="absolute right-4 top-4 z-20">
         <ProfileWalletMenu />
@@ -320,23 +306,13 @@ export function ProfilePage() {
         </div>
       ) : null}
 
-      <div className="absolute left-4 top-4 z-10 flex flex-wrap items-center gap-2">
+      <div className="absolute left-4 top-4 z-10">
         <Button
           asChild
-          className="pointer-events-auto border-white/25 bg-background/55 text-foreground shadow-lg backdrop-blur-md hover:bg-background/75 dark:border-white/15 dark:bg-background/40"
-          size="sm"
           variant="outline"
+          className="pointer-events-auto h-11 gap-2 px-6"
         >
           <Link to="/">Back</Link>
-        </Button>
-        <Button
-          className="pointer-events-auto border-white/25 bg-background/55 text-foreground shadow-lg backdrop-blur-md hover:bg-background/75 dark:border-white/15 dark:bg-background/40"
-          size="sm"
-          variant="outline"
-          onClick={() => setTheme(isDark ? "light" : "dark")}
-        >
-          {isDark ? <SunMedium className="size-4" /> : <MoonStar className="size-4" />}
-          {isDark ? "Daylight" : "Night sky"}
         </Button>
       </div>
 
@@ -362,7 +338,7 @@ export function ProfilePage() {
             >
               <p
                 className={`text-balance text-sm ${
-                  isDark ? "text-white/80" : "text-slate-900/85"
+                  "text-white/80"
                 }`}
               >
                 {mintPhase === "hatching"
@@ -380,7 +356,7 @@ export function ProfilePage() {
               {mintError ? (
                 <p
                   className={`text-balance text-[0.7rem] leading-snug ${
-                    isDark ? "text-red-300/90" : "text-red-700/90"
+                    "text-red-300/90"
                   }`}
                 >
                   {mintError}
