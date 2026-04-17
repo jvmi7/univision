@@ -3,7 +3,7 @@ import { animate, motion, useReducedMotion } from "framer-motion"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { MoonStar, SunMedium } from "lucide-react"
 import { Link } from "react-router-dom"
-import { zeroAddress } from "viem"
+import { isAddress, zeroAddress } from "viem"
 import {
   useAccount,
   useChainId,
@@ -27,7 +27,10 @@ import { LocalChainDevPanel } from "@/components/local-chain-dev-panel"
 import { MeadowScene } from "@/components/meadow-scene"
 import { ProfileWalletMenu } from "@/components/profile-wallet-menu"
 import { UnityPetCard } from "@/components/unity-pet/unity-pet-card"
-import type { UnityPetStats } from "@/components/unity-pet/unity-pet-types"
+import {
+  UNITY_PET_AURA_POINTS_MAX,
+  type UnityPetStats,
+} from "@/components/unity-pet/unity-pet-types"
 import { cn } from "@/lib/utils"
 import { useTheme } from "@/components/theme-provider"
 import { Button } from "@/components/ui/button"
@@ -45,19 +48,12 @@ import {
   sanitizeProfileUsername,
 } from "@/lib/profile-username"
 import {
-  deriveAuraPointsFromCreatedAt,
-  deriveUnityPetStatsFromProfile,
-} from "@/lib/profile-onchain-stats"
+  extractProfileAura,
+  getProfileDetail,
+  mapRepByCategoryToUnityPetStats,
+  profileAuraDisplayTotal,
+} from "@/lib/profile-api"
 import { useDocumentTheme } from "@/hooks/use-document-theme"
-
-const demoPetStats: UnityPetStats = {
-  researcher: 28,
-  builder: 35,
-  trader: 18,
-  liquidityProvider: 42,
-  governanceParticipant: 22,
-  communityMember: 31,
-}
 
 const zeroPetStats: UnityPetStats = {
   researcher: 0,
@@ -67,9 +63,6 @@ const zeroPetStats: UnityPetStats = {
   governanceParticipant: 0,
   communityMember: 0,
 }
-
-const TARGET_AURA_POINTS = 72
-const TARGET_ASSIGNED_AURA = 24
 
 /** Meadow-only beat: card stays fully hidden, then springs in (real-time `setTimeout`, not motion `delay`). */
 const PET_CARD_ENTRANCE_DELAY_S = 1.5
@@ -240,6 +233,10 @@ export function ProfilePage() {
   const [mintPhase, setMintPhase] = useState<"idle" | "hatching">("idle")
   const [cardStats, setCardStats] = useState<UnityPetStats>(zeroPetStats)
   const [auraPoints, setAuraPoints] = useState(0)
+  /** Max aura for this profile (badge + “X of Y” rep line). From API when present, else on-chain derive cap. */
+  const [auraTotalCap, setAuraTotalCap] = useState(UNITY_PET_AURA_POINTS_MAX)
+  /** `onHatchComplete` timestamp for offline derive when the card entrance animation finishes. */
+  const hatchCreatedAtRef = useRef<bigint>(0n)
   /** After hidden wait: card is allowed to spring in (hatched users only). */
   const [cardRevealStarted, setCardRevealStarted] = useState(false)
   const auraAnimRef = useRef<ReturnType<typeof animate> | null>(null)
@@ -250,71 +247,18 @@ export function ProfilePage() {
   const hatchCompleteGuardRef = useRef(false)
   /** Dedupes ProfileRegistry → UI hydration (Strict Mode + refetch). */
   const lastHydratedProfileKeyRef = useRef("")
+  /** Invalidates in-flight `GET /api/profiles` when the on-chain profile identity changes. */
+  const profileApiFetchGenRef = useRef(0)
 
-  /* eslint-disable react-hooks/set-state-in-effect -- hydrate Unity Pet from ProfileRegistry */
-  useEffect(() => {
-    if (!profileReadEnabled || !profileTuple || !Array.isArray(profileTuple)) {
-      return
-    }
-    const [username, , createdAt] = profileTuple as [
-      string,
-      `0x${string}`,
-      bigint,
-    ]
-    if (!username) {
-      return
-    }
-
-    const dedupeKey = `${username}:${createdAt.toString()}`
-    if (lastHydratedProfileKeyRef.current === dedupeKey) {
-      return
-    }
-    lastHydratedProfileKeyRef.current = dedupeKey
-
-    const { theme, stage } = deterministicCompanionFromSeed(username, createdAt)
-    const stats = deriveUnityPetStatsFromProfile(username, createdAt)
-    const auraTarget = deriveAuraPointsFromCreatedAt(
-      createdAt,
-      TARGET_AURA_POINTS,
-    )
-
-    setPetName(username)
-    skipCardEntranceDelayRef.current = true
-    setCardRevealStarted(true)
-    statsRevealGuardRef.current = true
-    setCompanion({ hatched: true, theme, stage })
-    setCardStats(stats)
-    setAuraPoints(0)
-    auraAnimRef.current?.stop()
-    auraAnimRef.current = animate(0, auraTarget, {
-      type: "spring",
-      stiffness: 36,
-      damping: 13,
-      mass: 1.25,
-      restDelta: 0.35,
-      onUpdate: (latest) =>
-        setAuraPoints(
-          Math.min(TARGET_AURA_POINTS, Math.max(0, Math.round(latest))),
-        ),
-    })
-  }, [profileReadEnabled, profileTuple])
-  /* eslint-enable react-hooks/set-state-in-effect */
-
-  const assignedAura =
-    auraPoints >= TARGET_AURA_POINTS
-      ? TARGET_ASSIGNED_AURA
-      : Math.round((TARGET_ASSIGNED_AURA * auraPoints) / TARGET_AURA_POINTS)
-
-  const portraitUrl =
-    companion.hatched === true
-      ? getUnityPetPortraitUrl({
-          kind: "hatched",
-          theme: companion.theme,
-          stage: companion.stage,
-        })
-      : getUnityPetPortraitUrl({ kind: "egg" })
-
-  /* eslint-disable react-hooks/set-state-in-effect -- meadow entrance + reduced-motion hydration */
+  /**
+   * Meadow entrance must run **before** the ProfileRegistry hydration effect below.
+   * On the commit where `profileTuple` first arrives, `hasHatched` is still false until
+   * hydration runs; this effect resets `cardRevealStarted`. If hydration ran first and
+   * then this effect, the reset would win the batch and the next run would consume
+   * `skipCardEntranceDelayRef` without scheduling the delayed reveal — leaving the card
+   * stuck at opacity 0 for returning profiles.
+   */
+   
   useEffect(() => {
     if (!hasHatched) {
       setCardRevealStarted(false)
@@ -330,8 +274,8 @@ export function ProfilePage() {
         profileReadStatus === "success" &&
         onchainUsername.length > 0
       if (!fromChain) {
-        setCardStats(demoPetStats)
-        setAuraPoints(TARGET_AURA_POINTS)
+        setCardStats(zeroPetStats)
+        setAuraPoints(0)
       }
       return
     }
@@ -353,7 +297,165 @@ export function ProfilePage() {
     profileReadStatus,
     onchainUsername,
   ])
-  /* eslint-enable react-hooks/set-state-in-effect */
+   
+
+   
+  useEffect(() => {
+    if (!profileReadEnabled || !profileTuple || !Array.isArray(profileTuple)) {
+      return
+    }
+    const [username, linkedWallet, createdAt] = profileTuple as [
+      string,
+      `0x${string}`,
+      bigint,
+    ]
+    if (!username) {
+      return
+    }
+
+    const dedupeKey = `${username}:${createdAt.toString()}`
+    if (lastHydratedProfileKeyRef.current === dedupeKey) {
+      return
+    }
+    lastHydratedProfileKeyRef.current = dedupeKey
+
+    console.log("[univision] ProfileRegistry getProfile", {
+      username,
+      linkedWallet,
+      createdAt: createdAt.toString(),
+      // note: "REP + aura: GET /api/profiles/<connectedWallet> (repByCategory, aura). Contract has no scores.",
+    })
+
+    const { theme, stage } = deterministicCompanionFromSeed(username, createdAt)
+
+    setPetName(username)
+    skipCardEntranceDelayRef.current = true
+    setCardRevealStarted(true)
+    statsRevealGuardRef.current = true
+    setCompanion({ hatched: true, theme, stage })
+    /** REP + aura come from `GET /api/profiles/<wallet>` (following effect); avoid a misleading pre-API flash. */
+    setCardStats(zeroPetStats)
+    setAuraTotalCap(UNITY_PET_AURA_POINTS_MAX)
+    setAuraPoints(0)
+    auraAnimRef.current?.stop()
+  }, [profileReadEnabled, profileTuple])
+   
+
+  /** Load REP + aura from the API whenever we have a valid wallet — independent of chain or on-chain registry username. */
+  useEffect(() => {
+    if (!isConnected || !address || !isAddress(address)) {
+      console.log('no isConnected or address or isAddress(address)')
+      return
+    }
+
+    const wallet = address as `0x${string}`
+
+    const applyApiFailureFallback = () => {
+      setCardStats(zeroPetStats)
+      setAuraTotalCap(1)
+      setAuraPoints(0)
+      auraAnimRef.current?.stop()
+    }
+    console.log('keep going')
+
+    const applyDetail = (detail: NonNullable<Awaited<ReturnType<typeof getProfileDetail>>>) => {
+      const mapped = mapRepByCategoryToUnityPetStats(detail.repByCategory)
+      const rawAura = extractProfileAura(detail)
+      console.log('mapped', mapped)
+
+      if (mapped === null && rawAura === null) {
+        applyApiFailureFallback()
+        return
+      }
+      console.log('keep going 1')
+
+      if (mapped) {
+        setCardStats(mapped)
+      } else {
+        setCardStats(zeroPetStats)
+      }
+      console.log('keep going 2')
+
+      const auraTarget = rawAura !== null ? profileAuraDisplayTotal(rawAura) : 0
+
+      const cap = Math.max(1, auraTarget)
+      setAuraTotalCap(cap)
+      setAuraPoints(0)
+      auraAnimRef.current?.stop()
+      auraAnimRef.current = animate(0, auraTarget, {
+        type: "spring",
+        stiffness: 36,
+        damping: 13,
+        mass: 1.25,
+        restDelta: 0.35,
+        onUpdate: (latest) =>
+          setAuraPoints(Math.min(cap, Math.max(0, Math.round(latest)))),
+      })
+      console.log('keep going 3')
+    }
+
+    const fetchGen = ++profileApiFetchGenRef.current
+    const ac = new AbortController()
+
+    void (async () => {
+      try {
+        let detail = await getProfileDetail(wallet, { signal: ac.signal })
+        console.log('detail', detail)
+        if (
+          detail === null &&
+          profileReadEnabled &&
+          hasPrimaryWallet &&
+          primaryWallet &&
+          primaryWallet !== zeroAddress &&
+          primaryWallet.toLowerCase() !== wallet.toLowerCase()
+        ) {
+          detail = await getProfileDetail(primaryWallet as `0x${string}`, {
+            signal: ac.signal,
+          })
+        }
+
+        if (fetchGen !== profileApiFetchGenRef.current) {
+          return
+        }
+        if (detail === null) {
+          applyApiFailureFallback()
+          return
+        }
+        applyDetail(detail)
+      } catch (err: unknown) {
+        if (fetchGen !== profileApiFetchGenRef.current) {
+          return
+        }
+        if (err instanceof DOMException && err.name === "AbortError") {
+          return
+        }
+        applyApiFailureFallback()
+      }
+    })()
+
+    return () => ac.abort()
+  }, [
+    isConnected,
+    address,
+    profileReadEnabled,
+    hasPrimaryWallet,
+    primaryWallet,
+  ])
+
+  const assignedAuraFull = Math.max(0, Math.round(auraTotalCap / 3))
+  const assignedAura =
+    auraPoints >= auraTotalCap
+      ? assignedAuraFull
+      : Math.round((assignedAuraFull * auraPoints) / Math.max(1, auraTotalCap))
+
+  const portraitUrl =
+    companion.hatched === true
+      ? getUnityPetPortraitUrl({
+          kind: "hatched",
+          theme: companion.theme,
+          stage: companion.stage,
+        })
+      : getUnityPetPortraitUrl({ kind: "egg" })
 
   useEffect(() => {
     return () => {
@@ -362,16 +464,18 @@ export function ProfilePage() {
     }
   }, [])
 
-  /* eslint-disable react-hooks/set-state-in-effect -- wallet disconnected mid-hatch */
+   
   useEffect(() => {
     if (isConnected) {
       return
     }
     setCompanion({ hatched: false })
     lastHydratedProfileKeyRef.current = ""
+    hatchCreatedAtRef.current = 0n
     setPetName("Companion")
     setRegisterUsername("")
     setCardStats(zeroPetStats)
+    setAuraTotalCap(UNITY_PET_AURA_POINTS_MAX)
     setAuraPoints(0)
     setCardRevealStarted(false)
     statsRevealGuardRef.current = false
@@ -381,9 +485,9 @@ export function ProfilePage() {
     setMintPhase("idle")
     resetMintWrite()
   }, [isConnected, mintPhase, resetMintWrite])
-  /* eslint-enable react-hooks/set-state-in-effect */
+   
 
-  /* eslint-disable react-hooks/set-state-in-effect -- surface writeContract / receipt failures */
+   
   useEffect(() => {
     if (mintPhase !== "hatching" || !profileRegisterOnchain) {
       return
@@ -419,7 +523,7 @@ export function ProfilePage() {
     mintReceipt,
     resetMintWrite,
   ])
-  /* eslint-enable react-hooks/set-state-in-effect */
+   
 
   const onMint = () => {
     setMintError(null)
@@ -495,6 +599,7 @@ export function ProfilePage() {
       setPetName(offlineRevealPetName)
     }
     const nowCreated = BigInt(Math.floor(Date.now() / 1000))
+    hatchCreatedAtRef.current = nowCreated
     const rolled = profileRegisterOnchain
       ? deterministicCompanionFromSeed(
           resolvedRegisterName || petName,
@@ -506,6 +611,7 @@ export function ProfilePage() {
     setCompanion({ hatched: true, theme: rolled.theme, stage: rolled.stage })
     setMintPhase("idle")
     setCardStats(zeroPetStats)
+    setAuraTotalCap(UNITY_PET_AURA_POINTS_MAX)
     setAuraPoints(0)
     statsRevealGuardRef.current = false
     resetMintWrite()
@@ -807,25 +913,66 @@ export function ProfilePage() {
                 if (reduceMotion || !cardRevealStarted) return
                 if (statsRevealGuardRef.current) return
                 statsRevealGuardRef.current = true
-                // Registry-backed profiles: REP bars + aura come from `getProfile` hydration
-                // (`deriveUnityPetStatsFromProfile` / `deriveAuraPointsFromCreatedAt`). The
-                // entrance animation can finish before that effect runs; demo stats would win.
+                // Registry path: stats + aura come from `GET /api/profiles/:id` (separate effect).
                 if (profileRegisterOnchain) {
+                  console.log('profileRegisterOnchain')
                   return
                 }
-                setCardStats(demoPetStats)
-                auraAnimRef.current?.stop()
-                auraAnimRef.current = animate(0, TARGET_AURA_POINTS, {
-                  type: "spring",
-                  stiffness: 36,
-                  damping: 13,
-                  mass: 1.25,
-                  restDelta: 0.35,
-                  onUpdate: (latest) =>
-                    setAuraPoints(
-                      Math.min(TARGET_AURA_POINTS, Math.max(0, Math.round(latest))),
-                    ),
-                })
+                const created = hatchCreatedAtRef.current
+                if (created === 0n) {
+                  return
+                }
+                const name = petName.trim()
+                const pathParam: string | undefined =
+                  address && isAddress(address)
+                    ? address
+                    : name && isAddress(name as `0x${string}`)
+                      ? name
+                      : name.length > 0
+                        ? name
+                        : undefined
+                const runAuraSpring = (auraTarget: number) => {
+                  const cap = Math.max(1, auraTarget)
+                  setAuraTotalCap(cap)
+                  setAuraPoints(0)
+                  auraAnimRef.current?.stop()
+                  auraAnimRef.current = animate(0, auraTarget, {
+                    type: "spring",
+                    stiffness: 36,
+                    damping: 13,
+                    mass: 1.25,
+                    restDelta: 0.35,
+                    onUpdate: (latest) =>
+                      setAuraPoints(
+                        Math.min(cap, Math.max(0, Math.round(latest))),
+                      ),
+                  })
+                }
+                if (!pathParam) {
+                  setCardStats(zeroPetStats)
+                  runAuraSpring(0)
+                  return
+                }
+                void getProfileDetail(pathParam)
+                  .then((detail) => {
+                    if (!detail) {
+                      setCardStats(zeroPetStats)
+                      runAuraSpring(0)
+                      return
+                    }
+                    const mapped = mapRepByCategoryToUnityPetStats(
+                      detail.repByCategory,
+                    )
+                    const rawAura = extractProfileAura(detail)
+                    setCardStats(mapped ?? zeroPetStats)
+                    const auraTarget =
+                      rawAura !== null ? profileAuraDisplayTotal(rawAura) : 0
+                    runAuraSpring(auraTarget)
+                  })
+                  .catch(() => {
+                    setCardStats(zeroPetStats)
+                    runAuraSpring(0)
+                  })
               }}
             >
               <UnityPetCard
@@ -833,8 +980,8 @@ export function ProfilePage() {
                 auraPoints={auraPoints}
                 className={cn("w-full", MEADOW_PROFILE_GLASS)}
                 reputationSummaryNumbers={{
-                  totalAura: TARGET_AURA_POINTS,
-                  assignedReputationAura: TARGET_ASSIGNED_AURA,
+                  totalAura: auraTotalCap,
+                  assignedReputationAura: assignedAura,
                 }}
                 statFillLayout="spring"
                 imageAlt={`${petName} portrait`}

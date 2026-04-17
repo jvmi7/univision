@@ -18,14 +18,15 @@ export default defineConfig(({ mode }) => {
   const apiRpcProxyTarget =
     env.VITE_DEV_API_RPC_TARGET?.trim() || "http://127.0.0.1:3001"
 
-  const apiRpcProxy = {
-    "/api/rpc": {
+  /** Browser → same-origin `/api/*` (profiles, leaderboards, rpc, …) → API server. */
+  const apiProxy = {
+    "/api": {
       target: apiRpcProxyTarget,
       changeOrigin: true,
     },
   } as const
 
-  const devProxy = { ...anvilRpcProxy, ...apiRpcProxy }
+  const devProxy = { ...anvilRpcProxy, ...apiProxy }
 
   return {
     plugins: [react(), tailwindcss()],
