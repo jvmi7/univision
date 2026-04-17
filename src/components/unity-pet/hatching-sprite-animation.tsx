@@ -182,8 +182,13 @@ export function HatchingSpriteAnimation({
       : 1
   const bgW = sheetW * scale
   const bgH = sheetH * scale
-  const posX = -col * frameStepX * scale
-  const posY = -row * frameStepY * scale
+  /** Letterbox/pillarbox like `object-contain` + default center — static egg uses `object-contain`. */
+  const centerX =
+    boxPx.w > 0 ? (boxPx.w - frameStepX * scale) / 2 : 0
+  const centerY =
+    boxPx.h > 0 ? (boxPx.h - frameStepY * scale) / 2 : 0
+  const posX = centerX - col * frameStepX * scale
+  const posY = centerY - row * frameStepY * scale
 
   return (
     <div
